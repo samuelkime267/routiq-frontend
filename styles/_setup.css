@@ -1,0 +1,53 @@
+:root {
+  --pri: #064c50;
+  --pri-deep: #0b2e30;
+  --pri-text: #1d1d1d;
+  --accent: #ffbb38;
+  --lime: #bceb70;
+  --cream: #ffefd0;
+  --ink: #111111;
+  --muted: #6b6b6b;
+  --line: #e9ecec;
+  --well: #edf2f2;
+  --soft: #f2f2f5;
+  --danger: #ff4757;
+  --success: #00b14f;
+  --info: #e6f0ff;
+}
+
+@theme inline {
+  --color-pri: var(--pri);
+  --color-pri-deep: var(--pri-deep);
+  --color-pri-text: var(--pri-text);
+  --color-accent: var(--accent);
+  --color-lime: var(--lime);
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-well: var(--well);
+  --color-soft: var(--soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-info: var(--info);
+}
+
+* {
+  font-family: var(--font-poppins), system-ui, sans-serif;
+}
+
+body {
+  background-color: #ffffff;
+  color: var(--pri-text);
+}
+
+::selection {
+  background-color: var(--lime);
+  color: var(--pri-deep);
+}
+
+input,
+textarea,
+select {
+  @apply outline-none;
+}
