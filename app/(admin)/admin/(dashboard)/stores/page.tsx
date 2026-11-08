@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import RequirePermission from "@/components/admin/RequirePermission";
 import StoreApprovals from "@/components/admin/stores/StoreApprovals";
 
+// The queue reads `searchParams` and loads live data after hydration.
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Store approvals",
   description:

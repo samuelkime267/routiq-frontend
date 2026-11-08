@@ -11,6 +11,8 @@ import type {
   AdminListResult,
   AdminPermission,
   AdminProfile,
+  AdminProductDetail,
+  AdminProductListResult,
   AdminRole,
   AdminStatus,
   AdminStoreDetail,
@@ -19,6 +21,7 @@ import type {
   ApiAdminNote,
   ApiAdminUser,
   ApiNotification,
+  ApiProduct,
   ApiStore,
   ApiUser,
   AuthResult,
@@ -29,6 +32,8 @@ import type {
   DashboardQuery,
   DashboardRecentActivityResult,
   NotificationListResult,
+  PendingProductListResult,
+  ProductFilterOptions,
   StoreDocumentType,
   StorePayload,
   StoreStatus,
@@ -612,6 +617,81 @@ export const storeAdminApi = {
   reactivate: (storeId: string, note?: string) =>
     apiFetch<{ store: ApiStore }>(
       `/stores/${encodeURIComponent(storeId)}/admin/reactivate`,
+      { method: "POST", body: JSON.stringify({ note }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+export type AdminProductListQuery = {
+  status?: string;
+  publicationStatus?: string;
+  category?: string;
+  vendor?: string;
+  store?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  createdFrom?: string;
+  createdTo?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const productAdminApi = {
+  list: (query: AdminProductListQuery = {}) =>
+    apiFetch<AdminProductListResult>(
+      `/products${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  pending: (query: AdminProductListQuery = {}) =>
+    apiFetch<PendingProductListResult>(
+      `/products/pending${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (productId: string) =>
+    apiFetch<AdminProductDetail>(
+      `/products/${encodeURIComponent(productId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  filters: () =>
+    apiFetch<ProductFilterOptions>(
+      "/products/filters",
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  approve: (productId: string, note?: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/${encodeURIComponent(productId)}/admin/approve`,
+      { method: "POST", body: JSON.stringify({ note }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  reject: (productId: string, reason: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/${encodeURIComponent(productId)}/admin/reject`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  suspend: (productId: string, reason: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/${encodeURIComponent(productId)}/admin/suspend`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  restore: (productId: string, note?: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/${encodeURIComponent(productId)}/admin/restore`,
       { method: "POST", body: JSON.stringify({ note }) },
       { refreshPath: ADMIN_REFRESH_PATH },
     ),

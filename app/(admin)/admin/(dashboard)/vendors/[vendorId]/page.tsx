@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import RequirePermission from "@/components/admin/RequirePermission";
 import VendorProfile from "@/components/admin/vendors/VendorProfile";
 
+// The profile needs the vendor id and loads its record on the client.
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Vendor profile",
   description:

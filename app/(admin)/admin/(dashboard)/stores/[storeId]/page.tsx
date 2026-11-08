@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import RequirePermission from "@/components/admin/RequirePermission";
 import StoreReview from "@/components/admin/stores/StoreReview";
 
+// The review workspace needs the store id and loads its record on the client.
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Store review",
   description:

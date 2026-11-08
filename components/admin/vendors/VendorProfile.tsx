@@ -524,6 +524,7 @@ const productStatusOptions = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
+  { value: "suspended", label: "Suspended" },
   { value: "archived", label: "Archived" },
 ];
 

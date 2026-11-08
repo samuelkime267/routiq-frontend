@@ -21,7 +21,7 @@ import { breadcrumbsFor } from "@/lib/adminNavigation";
 import { formatAdminDate } from "@/lib/admin";
 import type { SortDirection } from "@/lib/pagination";
 import type { StoreActionKind } from "@/lib/schemas/store";
-import type { ApiStore, StoreStatus } from "@/types/api";
+import type { ApiStore } from "@/types/api";
 import { formatBusinessType, storeStatusLabel } from "@/lib/vendors";
 
 interface StoreApprovalsProps {
@@ -33,14 +33,6 @@ interface ActiveDialog {
   store: ApiStore;
   action: StoreActionKind;
 }
-
-const SUMMARY_STATUSES: StoreStatus[] = [
-  "pending",
-  "under_review",
-  "approved",
-  "rejected",
-  "suspended",
-];
 
 const sortOptions = [
   { value: "submittedAt:desc", label: "Newest submissions" },
@@ -229,7 +221,7 @@ export default function StoreApprovals({
   ];
 
   const total = summary
-    ? SUMMARY_STATUSES.reduce((count, status) => count + (summary[status] ?? 0), 0)
+    ? Object.values(summary).reduce((count, value) => count + value, 0)
     : table.meta.total;
 
   return (

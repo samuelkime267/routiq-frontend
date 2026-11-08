@@ -510,16 +510,123 @@ export interface AdminStoreHistoryResult {
   pagination: PaginationMeta;
 }
 
+export type ProductStatus =
+  | "draft"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "suspended"
+  | "archived";
+
+export type ProductPublicationStatus = "unpublished" | "published";
+
+export type ProductReviewAction =
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "suspended"
+  | "restored";
+
+export interface ApiProductVendorSummary {
+  _id: string;
+  name: string;
+  email: string;
+  username?: string | null;
+  status?: ApiUser["status"];
+  profilePicture?: string | null;
+}
+
+export interface ApiProductStoreSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  status: StoreStatus;
+  category?: string;
+  logo?: string | null;
+}
+
 export interface ApiProduct {
   _id: string;
   name: string;
   slug: string;
   sku: string;
   category: string;
+  description?: string | null;
   price: number;
+  compareAtPrice?: number | null;
   stock: number;
-  status: "draft" | "pending" | "approved" | "rejected" | "archived";
+  images: string[];
+  status: ProductStatus;
+  publicationStatus: ProductPublicationStatus;
+  vendor?: string | ApiProductVendorSummary;
+  store?: string | ApiProductStoreSummary;
+  rejectionReason?: string | null;
+  suspensionReason?: string | null;
+  suspendedAt?: string | null;
+  suspendedBy?: string | null;
+  previousStatus?: ProductStatus | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ApiProductReview {
+  _id: string;
+  product: string;
+  action: ProductReviewAction;
+  fromStatus: ProductStatus | null;
+  toStatus: ProductStatus | null;
+  reason?: string | null;
+  message?: string | null;
+  actor?:
+    | string
+    | {
+        _id: string;
+        name: string;
+        email: string;
+        adminRole?: AdminRole;
+      }
+    | null;
+  actorRole: "admin" | "vendor" | "system";
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type AdminProductSummary = Record<ProductStatus, number>;
+export type AdminProductPublicationSummary = Record<
+  ProductPublicationStatus,
+  number
+>;
+
+export interface AdminProductListResult {
+  products: ApiProduct[];
+  summary: AdminProductSummary;
+  publicationSummary: AdminProductPublicationSummary;
+  pagination: PaginationMeta;
+}
+
+export interface PendingProductListResult {
+  products: ApiProduct[];
+  summary: AdminProductSummary;
+  pagination: PaginationMeta;
+}
+
+export interface AdminProductDetail {
+  product: ApiProduct;
+  history: ApiProductReview[];
+}
+
+export interface ProductFilterOptions {
+  categories: string[];
+  vendors: Array<{ value: string; label: string; email?: string }>;
+  stores: Array<{
+    value: string;
+    label: string;
+    vendor?: string | null;
+    category?: string | null;
+  }>;
 }
 
 export interface VendorProductsResult {
@@ -616,7 +723,11 @@ export type NotificationType =
   | "store_suspended"
   | "store_reactivated"
   | "vendor_suspended"
-  | "vendor_reactivated";
+  | "vendor_reactivated"
+  | "product_approved"
+  | "product_rejected"
+  | "product_suspended"
+  | "product_restored";
 
 export interface ApiNotification {
   _id: string;
