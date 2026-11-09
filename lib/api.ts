@@ -9,8 +9,16 @@ import { buildQueryString } from "./pagination";
 import type {
   AdminAuthResult,
   AdminListResult,
+  AdminOrderDetail,
+  AdminOrderListResult,
+  AdminOrderShipmentsResult,
+  AdminOrderSubOrdersResult,
+  AdminOrderTimelineResult,
   AdminPermission,
   AdminProfile,
+  AdminShipmentDetail,
+  AdminShipmentListResult,
+  AdminShipmentTrackingResult,
   AdminProductDetail,
   AdminProductListResult,
   AdminRole,
@@ -22,6 +30,7 @@ import type {
   ApiAdminUser,
   ApiNotification,
   ApiProduct,
+  ApiShipment,
   ApiStore,
   ApiUser,
   AuthResult,
@@ -693,6 +702,128 @@ export const productAdminApi = {
     apiFetch<{ product: ApiProduct }>(
       `/products/${encodeURIComponent(productId)}/admin/restore`,
       { method: "POST", body: JSON.stringify({ note }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+export type AdminOrderListQuery = {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  fulfillmentStatus?: string;
+  shipmentStatus?: string;
+  customer?: string;
+  vendor?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminOrderCollectionQuery = {
+  status?: string;
+  paymentStatus?: string;
+  vendor?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminShipmentListQuery = {
+  search?: string;
+  status?: string;
+  provider?: string;
+  order?: string;
+  vendor?: string;
+  store?: string;
+  customer?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const orderAdminApi = {
+  list: (query: AdminOrderListQuery = {}) =>
+    apiFetch<AdminOrderListResult>(
+      `/orders${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (orderId: string) =>
+    apiFetch<AdminOrderDetail>(
+      `/orders/${encodeURIComponent(orderId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  timeline: (orderId: string, query: { type?: string; page?: number; limit?: number } = {}) =>
+    apiFetch<AdminOrderTimelineResult>(
+      `/orders/${encodeURIComponent(orderId)}/timeline${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  subOrders: (orderId: string, query: AdminOrderCollectionQuery = {}) =>
+    apiFetch<AdminOrderSubOrdersResult>(
+      `/orders/${encodeURIComponent(orderId)}/sub-orders${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  shipments: (orderId: string, query: AdminOrderCollectionQuery = {}) =>
+    apiFetch<AdminOrderShipmentsResult>(
+      `/orders/${encodeURIComponent(orderId)}/shipments${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+export const shipmentAdminApi = {
+  list: (query: AdminShipmentListQuery = {}) =>
+    apiFetch<AdminShipmentListResult>(
+      `/shipments${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (shipmentId: string) =>
+    apiFetch<AdminShipmentDetail>(
+      `/shipments/${encodeURIComponent(shipmentId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  tracking: (shipmentId: string, query: { page?: number; limit?: number } = {}) =>
+    apiFetch<AdminShipmentTrackingResult>(
+      `/shipments/${encodeURIComponent(shipmentId)}/tracking${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  refresh: (shipmentId: string) =>
+    apiFetch<{ shipment: ApiShipment }>(
+      `/shipments/${encodeURIComponent(shipmentId)}/admin/refresh`,
+      { method: "POST" },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  retry: (shipmentId: string) =>
+    apiFetch<{ shipment: ApiShipment }>(
+      `/shipments/${encodeURIComponent(shipmentId)}/admin/retry`,
+      { method: "POST" },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  cancel: (shipmentId: string, reason?: string) =>
+    apiFetch<{ shipment: ApiShipment }>(
+      `/shipments/${encodeURIComponent(shipmentId)}/admin/cancel`,
+      { method: "POST", body: JSON.stringify({ reason }) },
       { refreshPath: ADMIN_REFRESH_PATH },
     ),
 };

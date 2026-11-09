@@ -747,3 +747,314 @@ export interface NotificationListResult {
   unread: number;
   pagination: PaginationMeta;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Orders and logistics                                                       */
+/* -------------------------------------------------------------------------- */
+
+export type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "refunded";
+
+export type OrderPaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+export type FulfillmentStatus =
+  | "unfulfilled"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "failed"
+  | "cancelled";
+
+export type ShipmentStatus =
+  | "pending"
+  | "confirmed"
+  | "picked_up"
+  | "in_transit"
+  | "delivered"
+  | "failed"
+  | "cancelled";
+
+export type OrderTimelineEventType =
+  | "created"
+  | "payment_confirmed"
+  | "vendor_notified"
+  | "processing"
+  | "shipment_created"
+  | "picked_up"
+  | "in_transit"
+  | "delivered"
+  | "completed"
+  | "cancelled"
+  | "refunded";
+
+export interface ApiOrderParty {
+  _id: string;
+  name: string;
+  email?: string;
+  username?: string;
+  phone?: string | null;
+  profilePicture?: string | null;
+  status?: string;
+}
+
+export interface ApiOrderStoreSummary {
+  _id: string;
+  name: string;
+  slug?: string;
+  status?: string;
+  category?: string | null;
+  logo?: string | null;
+}
+
+export interface ApiOrderAddress {
+  recipientName?: string | null;
+  phone?: string | null;
+  street?: string | null;
+  city?: string | null;
+  lga?: string | null;
+  state?: string | null;
+  country?: string | null;
+  landmark?: string | null;
+}
+
+export interface ApiOrderEvent {
+  _id?: string;
+  type: OrderTimelineEventType;
+  occurredAt: string;
+  description?: string | null;
+  source?: string;
+}
+
+export interface ApiShipmentEvent {
+  key: string;
+  status?: string | null;
+  message?: string | null;
+  location?: string | null;
+  occurredAt: string;
+  source: "provider" | "webhook" | "system";
+  receivedAt?: string | null;
+}
+
+export interface ApiShipmentCourier {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  trackingCode?: string | null;
+  trackingMessage?: string | null;
+}
+
+export interface ApiShipment {
+  _id: string;
+  order: ApiAdminOrder | string;
+  trackingNumber: string;
+  providerOrderId?: string | null;
+  provider: string;
+  status: ShipmentStatus;
+  providerStatus?: string | null;
+  failureReason?: string | null;
+  estimatedDeliveryAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  lastEventAt?: string | null;
+  trackingUrl?: string | null;
+  courier?: ApiShipmentCourier | null;
+  events?: ApiShipmentEvent[];
+  providerResponse?: unknown;
+  providerError?: string | null;
+  lastSyncedAt?: string | null;
+  lastSyncAttemptAt?: string | null;
+  syncAttempts?: number;
+  lastWebhookAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiPayment {
+  _id: string;
+  reference: string;
+  order: string;
+  customer?: string;
+  store?: string;
+  vendor?: string;
+  amount: number;
+  platformFee: number;
+  vendorAmount: number;
+  currency: string;
+  status: "pending" | "successful" | "failed" | "refunded";
+  channel: "card" | "bank_transfer" | "ussd" | "wallet";
+  paidAt?: string | null;
+  failedReason?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ApiEscrow {
+  _id: string;
+  order: string;
+  payment: string;
+  store: string;
+  vendor: string;
+  amountHeld: number;
+  amountReleased: number;
+  amountRefunded: number;
+  status: "held" | "released" | "refunded";
+  heldAt?: string | null;
+  releaseDueAt?: string | null;
+  releasedAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * An order row. Orders are vendor-specific fulfilment records; when a checkout
+ * spans vendors the `masterOrderNumber` groups them. List rows also carry the
+ * derived `fulfillmentStatus` and a denormalised party summary, while detail
+ * rows expose the populated `customer`, `vendor` and `store` documents.
+ */
+export interface ApiAdminOrder {
+  _id: string;
+  orderNumber: string;
+  masterOrderNumber?: string | null;
+  subOrderNumber?: string | null;
+  customer: ApiOrderParty | string;
+  vendor: ApiOrderParty | string;
+  store: ApiOrderStoreSummary | string;
+  customerSummary?: ApiOrderParty | null;
+  vendorSummary?: ApiOrderParty | null;
+  storeSummary?: ApiOrderStoreSummary | null;
+  items: ApiOrderItem[];
+  subtotal: number;
+  shippingFee: number;
+  discount: number;
+  discountCode?: string | null;
+  total: number;
+  status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
+  shippingCity?: string | null;
+  shippingState?: string | null;
+  shippingAddress?: ApiOrderAddress | null;
+  timeline?: ApiOrderEvent[];
+  placedAt?: string | null;
+  expectedDeliveryAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  fulfillmentStatus: FulfillmentStatus;
+  shipmentCount?: number;
+  shipmentStatuses?: ShipmentStatus[];
+  latestShipment?: ApiShipment | null;
+  shipments?: ApiShipment[];
+  payment?: ApiPayment | null;
+  escrow?: ApiEscrow | null;
+}
+
+export interface ApiOrderTimelineEvent {
+  id: string;
+  type: OrderTimelineEventType;
+  label: string;
+  description: string | null;
+  occurredAt: string;
+  orderId: string;
+  orderNumber: string;
+  subOrderNumber: string | null;
+  reference: string | null;
+}
+
+export interface ApiOrderGroupSummary {
+  masterOrderNumber: string | null;
+  orderCount: number;
+  status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
+  subtotal: number;
+  shippingFee: number;
+  discount: number;
+  total: number;
+  createdAt: string | null;
+  customer: ApiOrderParty | string | null;
+  shippingAddress: ApiOrderAddress | null;
+  statusCounts: Record<string, number>;
+  paymentStatusCounts: Record<string, number>;
+}
+
+export interface AdminOrderListResult {
+  orders: ApiAdminOrder[];
+  summary: Record<string, number>;
+  paymentSummary: Record<string, number>;
+  fulfillmentSummary: Record<string, number>;
+  shipmentSummary: Record<string, number>;
+  pagination: PaginationMeta;
+}
+
+export interface AdminOrderDetail {
+  order: ApiAdminOrder;
+  masterOrderNumber: string;
+  summary: ApiOrderGroupSummary;
+  subOrders: ApiAdminOrder[];
+  payments: ApiPayment[];
+  escrows: ApiEscrow[];
+  shipments: ApiShipment[];
+  timeline: ApiOrderTimelineEvent[];
+}
+
+export interface AdminOrderTimelineResult {
+  events: ApiOrderTimelineEvent[];
+  pagination: PaginationMeta;
+}
+
+export interface AdminOrderSubOrdersResult {
+  subOrders: ApiAdminOrder[];
+  pagination: PaginationMeta;
+}
+
+export interface AdminOrderShipmentsResult {
+  shipments: ApiShipment[];
+  pagination: PaginationMeta;
+}
+
+export interface AdminShipmentListResult {
+  shipments: ApiShipment[];
+  summary: Record<string, number>;
+  pagination: PaginationMeta;
+}
+
+export interface ApiShipmentProviderInfo {
+  name: string;
+  orderId: string | null;
+  status: string | null;
+  lastSyncedAt: string | null;
+  lastSyncAttemptAt: string | null;
+  syncAttempts: number;
+  error: string | null;
+  response: unknown;
+}
+
+export interface AdminShipmentDetail {
+  shipment: ApiShipment;
+  order: ApiAdminOrder | null;
+  siblingShipments: ApiShipment[];
+  provider: ApiShipmentProviderInfo;
+}
+
+export interface AdminShipmentTrackingResult {
+  events: ApiShipmentEvent[];
+  shipment: {
+    id: string;
+    trackingNumber: string;
+    status: ShipmentStatus;
+    providerStatus: string | null;
+    failureReason: string | null;
+    estimatedDeliveryAt: string | null;
+    deliveredAt: string | null;
+    courier: ApiShipmentCourier | null;
+    lastEventAt: string | null;
+  };
+  pagination: PaginationMeta;
+}
