@@ -47,6 +47,48 @@ export function FilterBar({
   );
 }
 
+interface FilterDateProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  id?: string;
+  min?: string;
+  max?: string;
+}
+
+export function FilterDate({
+  label,
+  value,
+  onChange,
+  className,
+  id,
+  min,
+  max,
+}: FilterDateProps) {
+  const dateId = id ?? `filter-${label.toLowerCase().replace(/\s+/g, "-")}`;
+
+  return (
+    <div className={cn("w-full sm:w-40", className)}>
+      <label
+        htmlFor={dateId}
+        className="mb-1 block text-[10px] font-semibold tracking-[0.14em] text-muted uppercase"
+      >
+        {label}
+      </label>
+      <input
+        id={dateId}
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-xl border border-line bg-white px-3 text-[12px] font-medium text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+      />
+    </div>
+  );
+}
+
 interface FilterSelectProps {
   label: string;
   value: string;

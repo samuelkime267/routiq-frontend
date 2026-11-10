@@ -73,10 +73,11 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
       },
       {
         href: "/customers",
-        label: "Customers",
+        label: "Users",
         icon: "users",
         permissions: ["users.view"],
-        description: "Look up customer accounts and activity.",
+        description:
+          "Look up customer and vendor accounts, their orders and support history.",
       },
     ],
   },
@@ -86,10 +87,11 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
     items: [
       {
         href: "/payments",
-        label: "Payments & Transactions",
+        label: "Transactions",
         icon: "card",
         permissions: ["transactions.view"],
-        description: "Monitor payments, settlements and transaction disputes.",
+        description:
+          "Monitor payments and refunds with their order, customer and vendor.",
       },
       {
         href: "/escrow",
@@ -100,10 +102,19 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
       },
       {
         href: "/reports",
-        label: "Financial Reports",
+        label: "Financial Overview",
         icon: "bar-chart",
-        permissions: ["transactions.view"],
-        description: "Exportable summaries for reconciliation and reporting.",
+        permissions: ["financials.view"],
+        description:
+          "Keep GMV, collections, commission, refunds, settlements and escrow separate.",
+      },
+      {
+        href: "/reconciliation",
+        label: "Reconciliation",
+        icon: "check-circle",
+        permissions: ["financials.view"],
+        description:
+          "Compare internal payments against the escrow ledger and flag discrepancies.",
       },
     ],
   },

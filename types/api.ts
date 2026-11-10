@@ -12,6 +12,7 @@ export type AdminStatus = "INVITED" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
 export type AdminPermission =
   | "dashboard.view"
   | "users.view"
+  | "users.manage"
   | "vendors.view"
   | "vendors.manage"
   | "stores.view"
@@ -24,6 +25,7 @@ export type AdminPermission =
   | "orders.manage"
   | "transactions.view"
   | "escrow.view"
+  | "financials.view"
   | "shipments.view"
   | "shipments.manage"
   | "disputes.view"
@@ -40,6 +42,7 @@ export interface ApiUser {
   name: string;
   username?: string;
   email: string;
+  phone?: string | null;
   role: UserRole;
   status: "active" | "inactive" | "suspended";
   isEmailVerified: boolean;
@@ -47,6 +50,8 @@ export interface ApiUser {
   authProvider?: "local" | "google";
   suspensionReason?: string | null;
   suspendedAt?: string | null;
+  suspendedBy?: string | null;
+  lastLoginAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1057,4 +1062,409 @@ export interface AdminShipmentTrackingResult {
     lastEventAt: string | null;
   };
   pagination: PaginationMeta;
+}
+
+/* -------------------------------------------------------------------------- */
+/* User management, financial operations and disputes                         */
+/* -------------------------------------------------------------------------- */
+
+export interface ApiOrderReference {
+  _id: string;
+  orderNumber: string;
+  masterOrderNumber?: string | null;
+  subOrderNumber?: string | null;
+  status?: OrderStatus;
+  paymentStatus?: OrderPaymentStatus;
+  total?: number;
+  createdAt?: string;
+}
+
+export interface AdminUserMetrics {
+  orders: number;
+  customerOrders: number;
+  vendorOrders: number;
+  transactionValue: number;
+  customerSpend: number;
+  vendorProceeds: number;
+  disputes: number;
+}
+
+export interface AdminUserListEntry extends ApiUser {
+  metrics: AdminUserMetrics;
+}
+
+export interface AdminUserListResult {
+  users: AdminUserListEntry[];
+  summary: {
+    roles: Record<string, number>;
+    statuses: Record<string, number>;
+    total: number;
+  };
+  pagination: PaginationMeta;
+}
+
+export interface AdminUserDetail {
+  user: ApiUser & {
+    adminRole?: AdminRole | null;
+    adminStatus?: AdminStatus | null;
+    lastLoginAt?: string | null;
+  };
+  store: ApiStore | null;
+  metrics: {
+    orders: number;
+    orderValue: number;
+    deliveredOrders: number;
+    transactions: number;
+    transactionValue: number;
+    refundedValue: number;
+    disputes: number;
+  };
+  recentOrders: ApiAdminOrder[];
+  recentTransactions: AdminTransactionEntry[];
+  disputes: ApiDispute[];
+  notes: ApiAdminNote[];
+}
+
+export interface AdminUserCollectionQuery {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  side?: "customer" | "vendor";
+  createdFrom?: string;
+  createdTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminUserOrdersResult {
+  side: "customer" | "vendor";
+  orders: ApiAdminOrder[];
+  pagination: PaginationMeta;
+}
+
+export interface AdminUserTransactionsResult {
+  side: "customer" | "vendor";
+  transactions: AdminTransactionEntry[];
+  pagination: PaginationMeta;
+}
+
+export type TransactionType = "payment" | "refund";
+
+export interface AdminTransactionEntry
+  extends Omit<ApiPayment, "order" | "customer" | "vendor" | "store"> {
+  order: ApiOrderReference | string | null;
+  customer?: ApiUser | string | null;
+  vendor?: ApiUser | string | null;
+  store?: ApiStore | string | null;
+  transactionType: TransactionType;
+  escrow?: AdminEscrowEntry | null;
+}
+
+export interface AdminTransactionListResult {
+  transactions: AdminTransactionEntry[];
+  summary: {
+    total: number;
+    statusCounts: Record<string, number>;
+    successfulVolume: number;
+    refundedVolume: number;
+    platformFees: number;
+  };
+  pagination: PaginationMeta;
+}
+
+export interface AdminTransactionDetail {
+  transaction: AdminTransactionEntry;
+  escrow: ApiEscrow | null;
+  disputes: ApiDispute[];
+  verification: {
+    source: string;
+    providerConfigured: boolean;
+    providerReference: string | null;
+    message: string;
+  };
+}
+
+export type EscrowReleaseStatus = "released" | "refunded" | "due" | "scheduled";
+
+export interface AdminEscrowEntry
+  extends Omit<ApiEscrow, "order" | "payment" | "store" | "vendor"> {
+  order:
+    | (ApiOrderReference & {
+        customer?: ApiUser | string | null;
+        vendor?: ApiUser | string | null;
+        store?: ApiStore | string | null;
+      })
+    | string
+    | null;
+  payment: ApiPayment | string | null;
+  store?: ApiStore | string | null;
+  vendor?: ApiUser | string | null;
+  availableHeld: number;
+  releaseStatus: EscrowReleaseStatus;
+  dispute: ApiDispute | null;
+  blockchain: {
+    supported: boolean;
+    reference: string | null;
+    network: string | null;
+    message?: string;
+  };
+}
+
+export interface AdminEscrowListResult {
+  escrows: AdminEscrowEntry[];
+  summary: {
+    total: number;
+    statusCounts: Record<string, number>;
+    heldBalance: number;
+    releasedVolume: number;
+    refundedVolume: number;
+  };
+  pagination: PaginationMeta;
+}
+
+export interface AdminEscrowDetail {
+  escrow: AdminEscrowEntry;
+  order: ApiAdminOrder | null;
+  payment: ApiPayment | null;
+  customer: ApiUser | null;
+  vendor: ApiUser | null;
+  store: ApiStore | null;
+  disputes: ApiDispute[];
+  settlement: {
+    amountHeld: number;
+    amountReleased: number;
+    amountRefunded: number;
+    availableHeld: number;
+    releaseDueAt: string | null;
+    releasedAt: string | null;
+    releaseStatus: EscrowReleaseStatus;
+  };
+  blockchain: {
+    supported: boolean;
+    reference: string | null;
+    network: string | null;
+    message: string;
+  };
+}
+
+export interface FinancialTotals {
+  gmv: number;
+  paymentVolume: number;
+  commission: number;
+  refundVolume: number;
+  refundedCommission: number;
+  settlementVolume: number;
+  netRevenue: number;
+  escrowBalance: number;
+  orders: number;
+  successfulPayments: number;
+  refunds: number;
+  releases: number;
+}
+
+export type FinancialChangeKey =
+  | "gmv"
+  | "paymentVolume"
+  | "commission"
+  | "refundVolume"
+  | "settlementVolume"
+  | "netRevenue";
+
+export interface FinancialOverviewResult {
+  range: DashboardRangeDTO;
+  totals: FinancialTotals;
+  previous: FinancialTotals;
+  change: Record<FinancialChangeKey, number | null>;
+  definitions: Record<string, string>;
+  escrowBasis: "all_time";
+  generatedAt: string;
+}
+
+export interface FinancialSeriesPoint {
+  key: string;
+  label: string;
+  value: number;
+  count: number;
+}
+
+export interface RevenueVendorRow {
+  vendorId: string | null;
+  name: string;
+  email: string | null;
+  stores: string[];
+  commission: number;
+  refundedCommission: number;
+  netRevenue: number;
+  paymentVolume: number;
+  payments: number;
+}
+
+export interface FinancialRevenueResult {
+  range: DashboardRangeDTO;
+  totals: FinancialTotals;
+  series: {
+    commission: FinancialSeriesPoint[];
+    refunds: FinancialSeriesPoint[];
+  };
+  vendors: RevenueVendorRow[];
+  platform: {
+    commission: number;
+    refundedCommission: number;
+    netRevenue: number;
+  };
+  generatedAt: string;
+}
+
+export type ReconciliationResult =
+  | "matched"
+  | "missing"
+  | "amount_mismatch"
+  | "status_mismatch";
+
+export interface ReconciliationRecord {
+  _id: string;
+  reference: string;
+  amount: number;
+  platformFee: number;
+  vendorAmount: number;
+  currency: string;
+  status: ApiPayment["status"];
+  channel: ApiPayment["channel"];
+  paidAt?: string | null;
+  createdAt: string;
+  result: ReconciliationResult;
+  escrow: ApiEscrow | null;
+  order: ApiOrderReference | null;
+  customer: ApiUser | null;
+  vendor: ApiUser | null;
+  stores: string[];
+  expectedEscrowAmount?: number | null;
+  recordedEscrowAmount?: number | null;
+}
+
+export interface ReconciliationReport {
+  range: DashboardRangeDTO;
+  records: ReconciliationRecord[];
+  summary: Record<ReconciliationResult, number> & {
+    total: number;
+    unresolved: number;
+  };
+  pagination: PaginationMeta;
+  externalVerification: {
+    configured: boolean;
+    provider: string | null;
+    checkedAt: string | null;
+    source: "internal_ledger_only";
+    message: string;
+  };
+  generatedAt: string;
+}
+
+export type DisputeStatus =
+  | "OPEN"
+  | "UNDER_REVIEW"
+  | "AWAITING_INFORMATION"
+  | "RESOLVED"
+  | "CLOSED";
+
+export type DisputeCategory =
+  | "payment"
+  | "order"
+  | "delivery"
+  | "product"
+  | "vendor";
+
+export type DisputePriority = "low" | "medium" | "high";
+
+export interface ApiDisputeEvidence {
+  _id: string;
+  label: string;
+  url?: string | null;
+  note?: string | null;
+  addedBy?: string | ApiUser | null;
+  createdAt: string;
+}
+
+export interface ApiDisputeNote {
+  _id: string;
+  body: string;
+  author: string | ApiUser;
+  createdAt: string;
+}
+
+export type DisputeHistoryAction =
+  | "created"
+  | "assigned"
+  | "status_changed"
+  | "note_added"
+  | "information_requested"
+  | "resolved"
+  | "closed";
+
+export interface ApiDisputeHistoryEntry {
+  _id: string;
+  action: DisputeHistoryAction;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  note?: string | null;
+  actor?: string | ApiUser | null;
+  createdAt: string;
+}
+
+export interface ApiDispute {
+  _id: string;
+  reference: string;
+  order: ApiOrderReference | string | null;
+  raisedBy: ApiUser | string | null;
+  vendor: ApiUser | string | null;
+  store: ApiStore | string | null;
+  type: string;
+  category: DisputeCategory;
+  status: DisputeStatus;
+  priority: DisputePriority;
+  subject: string;
+  description?: string | null;
+  resolution?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  assignedTo?: ApiUser | string | null;
+  assignedBy?: ApiUser | string | null;
+  assignedAt?: string | null;
+  informationRequest?: string | null;
+  evidence: ApiDisputeEvidence[];
+  notes: ApiDisputeNote[];
+  history: ApiDisputeHistoryEntry[];
+  isOpen?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminDisputeListResult {
+  disputes: ApiDispute[];
+  summary: {
+    statuses: Record<string, number>;
+    total: number;
+  };
+  pagination: PaginationMeta;
+}
+
+export interface AdminDisputeDetail {
+  dispute: ApiDispute;
+  order: ApiOrderReference | ApiAdminOrder | null;
+  customer: ApiUser | null;
+  vendor: ApiUser | null;
+  store: ApiStore | null;
+  assignment: {
+    assignedTo: ApiUser | null;
+    assignedBy: ApiUser | null;
+    assignedAt: string | null;
+  };
+  history: ApiDisputeHistoryEntry[];
+  notes: ApiDisputeNote[];
+  evidence: ApiDisputeEvidence[];
+  financials: {
+    orderTotal: number | null;
+    escrowModified: boolean;
+    note: string;
+  };
 }

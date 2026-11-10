@@ -26,6 +26,16 @@ import type {
   AdminStoreDetail,
   AdminStoreHistoryResult,
   AdminStoreListResult,
+  AdminDisputeDetail,
+  AdminDisputeListResult,
+  AdminEscrowDetail,
+  AdminEscrowListResult,
+  AdminTransactionDetail,
+  AdminTransactionListResult,
+  AdminUserDetail,
+  AdminUserListResult,
+  AdminUserOrdersResult,
+  AdminUserTransactionsResult,
   ApiAdminNote,
   ApiAdminUser,
   ApiNotification,
@@ -40,9 +50,15 @@ import type {
   DashboardPendingActionsResult,
   DashboardQuery,
   DashboardRecentActivityResult,
+  DisputeCategory,
+  DisputeStatus,
+  FinancialOverviewResult,
+  FinancialRevenueResult,
   NotificationListResult,
   PendingProductListResult,
   ProductFilterOptions,
+  ReconciliationReport,
+  ReconciliationResult,
   StoreDocumentType,
   StorePayload,
   StoreStatus,
@@ -895,3 +911,266 @@ export const uploadApi = {
 export function getCachedUser() {
   return getStoredUser();
 }
+
+/* -------------------------------------------------------------------------- */
+/* User management                                                            */
+/* -------------------------------------------------------------------------- */
+
+export type AdminUserListQuery = {
+  search?: string;
+  role?: string;
+  type?: string;
+  status?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminUserCollectionQuery = {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  side?: "customer" | "vendor";
+  createdFrom?: string;
+  createdTo?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const userAdminApi = {
+  list: (query: AdminUserListQuery = {}) =>
+    apiFetch<AdminUserListResult>(
+      `/users${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (userId: string) =>
+    apiFetch<AdminUserDetail>(
+      `/users/${encodeURIComponent(userId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  orders: (userId: string, query: AdminUserCollectionQuery = {}) =>
+    apiFetch<AdminUserOrdersResult>(
+      `/users/${encodeURIComponent(userId)}/orders${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  transactions: (userId: string, query: AdminUserCollectionQuery = {}) =>
+    apiFetch<AdminUserTransactionsResult>(
+      `/users/${encodeURIComponent(userId)}/transactions${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  updateStatus: (
+    userId: string,
+    payload: { status: "active" | "suspended"; reason?: string },
+  ) =>
+    apiFetch<{ user: ApiUser }>(
+      `/users/${encodeURIComponent(userId)}/admin/status`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+/* -------------------------------------------------------------------------- */
+/* Transactions                                                               */
+/* -------------------------------------------------------------------------- */
+
+export type AdminTransactionListQuery = {
+  search?: string;
+  type?: string;
+  status?: string;
+  channel?: string;
+  customer?: string;
+  vendor?: string;
+  order?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const transactionAdminApi = {
+  list: (query: AdminTransactionListQuery = {}) =>
+    apiFetch<AdminTransactionListResult>(
+      `/transactions${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (transactionId: string) =>
+    apiFetch<AdminTransactionDetail>(
+      `/transactions/${encodeURIComponent(transactionId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+/* -------------------------------------------------------------------------- */
+/* Escrow                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export type AdminEscrowListQuery = {
+  search?: string;
+  status?: string;
+  customer?: string;
+  vendor?: string;
+  order?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const escrowAdminApi = {
+  list: (query: AdminEscrowListQuery = {}) =>
+    apiFetch<AdminEscrowListResult>(
+      `/escrow${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (escrowId: string) =>
+    apiFetch<AdminEscrowDetail>(
+      `/escrow/${encodeURIComponent(escrowId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+/* -------------------------------------------------------------------------- */
+/* Financial reporting                                                        */
+/* -------------------------------------------------------------------------- */
+
+export const financialAdminApi = {
+  overview: (query: DashboardQuery = {}) =>
+    apiFetch<FinancialOverviewResult>(
+      `/financials/admin/overview${dashboardQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  revenue: (query: DashboardQuery = {}) =>
+    apiFetch<FinancialRevenueResult>(
+      `/financials/admin/revenue${dashboardQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  reconciliation: (
+    query: DashboardQuery & {
+      result?: ReconciliationResult | "";
+      search?: string;
+      sortBy?: string;
+      sortOrder?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+  ) =>
+    apiFetch<ReconciliationReport>(
+      `/financials/admin/reconciliation${buildQueryString({
+        range: query.range,
+        from: query.from,
+        to: query.to,
+        result: query.result,
+        search: query.search,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+        page: query.page,
+        limit: query.limit,
+      })}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
+
+/* -------------------------------------------------------------------------- */
+/* Disputes                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export type AdminDisputeListQuery = {
+  search?: string;
+  status?: DisputeStatus | "";
+  category?: DisputeCategory | "";
+  priority?: string;
+  assignedTo?: string;
+  customer?: string;
+  vendor?: string;
+  order?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const disputeAdminApi = {
+  list: (query: AdminDisputeListQuery = {}) =>
+    apiFetch<AdminDisputeListResult>(
+      `/disputes${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (disputeId: string) =>
+    apiFetch<AdminDisputeDetail>(
+      `/disputes/${encodeURIComponent(disputeId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  assign: (
+    disputeId: string,
+    payload: { adminId?: string; note?: string } = {},
+  ) =>
+    apiFetch<{ dispute: unknown }>(
+      `/disputes/${encodeURIComponent(disputeId)}/admin/assign`,
+      { method: "POST", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  updateStatus: (
+    disputeId: string,
+    payload: {
+      status: DisputeStatus;
+      note?: string;
+      message?: string;
+      resolution?: string;
+    },
+  ) =>
+    apiFetch<{ dispute: unknown }>(
+      `/disputes/${encodeURIComponent(disputeId)}/admin/status`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  addNote: (disputeId: string, body: string) =>
+    apiFetch<{ dispute: unknown }>(
+      `/disputes/${encodeURIComponent(disputeId)}/admin/notes`,
+      { method: "POST", body: JSON.stringify({ body }) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  resolve: (
+    disputeId: string,
+    payload: { resolution: string; note?: string },
+  ) =>
+    apiFetch<{ dispute: unknown }>(
+      `/disputes/${encodeURIComponent(disputeId)}/admin/resolve`,
+      { method: "POST", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};

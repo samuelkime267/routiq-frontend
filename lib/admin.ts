@@ -18,7 +18,8 @@ export const ADMIN_ROLE_DESCRIPTIONS: Record<AdminRole, string> = {
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   "dashboard.view": "Dashboard",
-  "users.view": "View customers",
+  "users.view": "View users",
+  "users.manage": "Manage user accounts",
   "vendors.view": "View vendors",
   "vendors.manage": "Manage vendors",
   "stores.view": "View stores",
@@ -31,6 +32,7 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   "orders.manage": "Manage orders",
   "transactions.view": "View transactions",
   "escrow.view": "View escrow",
+  "financials.view": "View financial reports",
   "shipments.view": "View shipments",
   "shipments.manage": "Manage shipments",
   "disputes.view": "View disputes",
