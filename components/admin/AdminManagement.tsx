@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { Icon } from "@/components/icons";
@@ -12,6 +12,7 @@ import DetailPanel from "@/components/ui/DetailPanel";
 import DropdownMenu, { type DropdownItem } from "@/components/ui/DropdownMenu";
 import { FilterBar, FilterSelect } from "@/components/ui/FilterBar";
 import { SelectField, TextField } from "@/components/ui/FormField";
+import { Field, Select } from "@/components/ui/Form";
 import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/ui/PageHeader";
 import Pagination from "@/components/ui/Pagination";
@@ -20,6 +21,8 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Tabs from "@/components/ui/Tabs";
 import Timeline, { type TimelineItem } from "@/components/ui/Timeline";
 import { useToast } from "@/components/ui/Toast";
+import AdminInvitations from "@/components/admin/AdminInvitations";
+import ReasonDialog from "@/components/admin/ReasonDialog";
 import { useAdminSession } from "@/components/admin/AdminSession";
 import { useServerTable } from "@/hooks/useServerTable";
 import { adminApi, ApiError } from "@/lib/api";
@@ -30,9 +33,9 @@ import {
 } from "@/lib/schemas/admin";
 import {
   ADMIN_PERMISSION_LABELS,
-  ADMIN_ROLE_DESCRIPTIONS,
   ADMIN_ROLE_LABELS,
   adminInitials,
+  adminRoleDescription,
   formatAdminDate,
   formatAdminRole,
   formatAdminStatus,
@@ -40,7 +43,9 @@ import {
 import { breadcrumbsFor } from "@/lib/adminNavigation";
 import type { SortDirection } from "@/lib/pagination";
 import type {
+  AdminDetailResult,
   AdminListEntry,
+  AdminRoleDefinition,
   AdminStatus,
 } from "@/types/api";
 
@@ -124,11 +129,64 @@ export default function AdminManagement() {
   const { user, permissions } = useAdminSession();
   const { toast } = useToast();
   const [selected, setSelected] = useState<AdminListEntry | null>(null);
+  const [detail, setDetail] = useState<AdminDetailResult | null>(null);
   const [pending, setPending] = useState<StatusChange | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [tab, setTab] = useState("directory");
+  const [roles, setRoles] = useState<AdminRoleDefinition[]>([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
+  const [roleTarget, setRoleTarget] = useState<AdminListEntry | null>(null);
+  const [nextRole, setNextRole] = useState("");
+  const detailRequest = useRef(0);
 
   const canManage = permissions.includes("admins.manage");
   const canInvite = permissions.includes("admins.invite");
+  const canManageRoles = permissions.includes("roles.manage");
+
+  useEffect(() => {
+    if (!canManageRoles || rolesLoaded) return;
+    let active = true;
+
+    adminApi
+      .roles({ limit: 100, sortBy: "key", sortOrder: "asc" })
+      .then((result) => {
+        if (!active) return;
+        setRoles(result.roles);
+        setRolesLoaded(true);
+      })
+      .catch(() => {
+        if (active) setRolesLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [canManageRoles, rolesLoaded]);
+
+  async function openDetails(entry: AdminListEntry) {
+    setSelected(entry);
+    setDetail(null);
+    const request = detailRequest.current + 1;
+    detailRequest.current = request;
+
+    try {
+      const result = await adminApi.getAdmin(entry.admin._id);
+      if (detailRequest.current === request) setDetail(result);
+    } catch {
+      if (detailRequest.current === request) setDetail(null);
+    }
+  }
+
+  function closeDetails() {
+    detailRequest.current += 1;
+    setSelected(null);
+    setDetail(null);
+  }
+
+  function openRoleChange(entry: AdminListEntry) {
+    setRoleTarget(entry);
+    setNextRole(entry.admin.adminRole);
+  }
 
   const table = useServerTable<AdminListEntry>({
     loader: async (query) => {
@@ -161,14 +219,30 @@ export default function AdminManagement() {
   function rowActions(entry: AdminListEntry) {
     const change = statusChangeFor(entry);
     const isSelf = entry.admin._id === user._id;
+    const canChangeRole =
+      canManageRoles &&
+      !isSelf &&
+      !(
+        entry.admin.adminRole === "SUPER_ADMIN" &&
+        user.adminRole !== "SUPER_ADMIN"
+      );
     const items: DropdownItem[] = [
       {
         id: "view",
         label: "View details",
         icon: "eye",
-        onSelect: () => setSelected(entry),
+        onSelect: () => void openDetails(entry),
       },
     ];
+
+    if (canChangeRole) {
+      items.push({
+        id: "role",
+        label: "Change role",
+        icon: "key",
+        onSelect: () => openRoleChange(entry),
+      });
+    }
 
     if (canManageTarget(entry) && change) {
       items.push({
@@ -354,7 +428,23 @@ export default function AdminManagement() {
         }
       />
 
-      <div className="space-y-3">
+      <Tabs
+        variant="underline"
+        ariaLabel="Admin management sections"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: "directory", label: "Directory", icon: "users" },
+          { id: "invitations", label: "Invitations", icon: "mail" },
+        ]}
+      />
+
+      {tab === "invitations" ? (
+        <AdminInvitations
+          onInviteRequest={canInvite ? () => setInviteOpen(true) : undefined}
+        />
+      ) : (
+        <div className="space-y-3">
         <div className="rounded-2xl border border-line bg-white">
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <SearchInput
@@ -464,11 +554,12 @@ export default function AdminManagement() {
             />
           }
         />
-      </div>
+        </div>
+      )}
 
       <DetailPanel
         open={Boolean(selected)}
-        onClose={() => setSelected(null)}
+        onClose={closeDetails}
         title={selected?.admin.name ?? "Administrator"}
         description={selected?.admin.email}
         badge={
@@ -485,7 +576,7 @@ export default function AdminManagement() {
                 {
                   id: "role-description",
                   label: "Scope",
-                  value: ADMIN_ROLE_DESCRIPTIONS[selected.admin.adminRole],
+                  value: adminRoleDescription(selected.admin.adminRole),
                 },
                 {
                   id: "status",
@@ -511,15 +602,43 @@ export default function AdminManagement() {
             : []
         }
         footer={
-          selected && canManageTarget(selected) && selectedChange ? (
-            <Button
-              variant={selectedChange.tone === "danger" ? "danger" : "primary"}
-              size="sm"
-              fullWidth
-              onClick={() => setPending(selectedChange)}
-            >
-              {selectedChange.label}
-            </Button>
+          selected ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                href={`/admins/${selected.admin._id}`}
+                variant="outline"
+                size="sm"
+                icon={<Icon name="arrow-right" />}
+              >
+                Full profile
+              </Button>
+              {canManageRoles &&
+              selected.admin._id !== user._id &&
+              !(
+                selected.admin.adminRole === "SUPER_ADMIN" &&
+                user.adminRole !== "SUPER_ADMIN"
+              ) ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Icon name="key" />}
+                  onClick={() => openRoleChange(selected)}
+                >
+                  Change role
+                </Button>
+              ) : null}
+              {canManageTarget(selected) && selectedChange ? (
+                <Button
+                  variant={
+                    selectedChange.tone === "danger" ? "danger" : "primary"
+                  }
+                  size="sm"
+                  onClick={() => setPending(selectedChange)}
+                >
+                  {selectedChange.label}
+                </Button>
+              ) : null}
+            </div>
           ) : undefined
         }
       >
@@ -527,18 +646,21 @@ export default function AdminManagement() {
           <>
             <section>
               <h3 className="text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
-                Effective permissions ({selected.permissions.length})
+                Effective permissions (
+                {(detail?.permissions ?? selected.permissions).length})
               </h3>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {selected.permissions.map((permission) => (
-                  <Badge
-                    key={permission}
-                    tone="neutral"
-                    className="px-2.5 py-0.5 text-[10px]"
-                  >
-                    {ADMIN_PERMISSION_LABELS[permission]}
-                  </Badge>
-                ))}
+                {(detail?.permissions ?? selected.permissions).map(
+                  (permission) => (
+                    <Badge
+                      key={permission}
+                      tone="neutral"
+                      className="px-2.5 py-0.5 text-[10px]"
+                    >
+                      {ADMIN_PERMISSION_LABELS[permission]}
+                    </Badge>
+                  ),
+                )}
               </div>
             </section>
 
@@ -564,6 +686,30 @@ export default function AdminManagement() {
                       .join(", ")}
                   </p>
                 ) : null}
+              </section>
+            ) : null}
+
+            {detail?.invitations?.length ? (
+              <section className="rounded-xl border border-line bg-well/40 px-3.5 py-3">
+                <h3 className="text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
+                  Invitation history
+                </h3>
+                <ul className="mt-2 space-y-1.5">
+                  {detail.invitations.slice(0, 5).map((invitation) => (
+                    <li
+                      key={invitation._id}
+                      className="flex items-center justify-between gap-2 text-[11px]"
+                    >
+                      <span className="text-muted">
+                        {formatAdminDate(invitation.lastSentAt)}
+                      </span>
+                      <StatusBadge
+                        status={invitation.status}
+                        className="px-2 py-0.5 text-[9px]"
+                      />
+                    </li>
+                  ))}
+                </ul>
               </section>
             ) : null}
 
@@ -596,7 +742,8 @@ export default function AdminManagement() {
                   : "The invitation has been revoked.",
           });
 
-          setSelected(null);
+          setPending(null);
+          closeDetails();
           table.reload();
         }}
         title={pending?.label ?? "Change administrator status"}
@@ -621,9 +768,77 @@ export default function AdminManagement() {
         ) : null}
       </ConfirmDialog>
 
+      <ReasonDialog
+        open={Boolean(roleTarget)}
+        onClose={() => setRoleTarget(null)}
+        onConfirm={async (reason) => {
+          if (!roleTarget) return;
+          if (!nextRole) throw new Error("Choose an administrative role.");
+
+          await adminApi.updateAdminRole(roleTarget.admin._id, nextRole, reason);
+
+          toast({
+            tone: "success",
+            title: "Role updated",
+            description: `${roleTarget.admin.name} is now ${formatAdminRole(nextRole)}.`,
+          });
+
+          setRoleTarget(null);
+          closeDetails();
+          table.reload();
+        }}
+        title="Change administrator role"
+        description="The new role takes effect immediately. Existing invitations are unaffected."
+        confirmLabel="Update role"
+        tone="primary"
+        requireReason
+      >
+        {roleTarget ? (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-line px-3.5 py-3">
+              <p className="text-[12px] font-semibold text-ink">
+                {roleTarget.admin.name}
+              </p>
+              <p className="text-[11px] text-muted">{roleTarget.admin.email}</p>
+              <p className="mt-1 text-[11px] text-muted">
+                Current role: {formatAdminRole(roleTarget.admin.adminRole)}
+              </p>
+            </div>
+
+            <Field label="New role" htmlFor="admin-next-role">
+              <Select
+                id="admin-next-role"
+                value={nextRole}
+                onChange={(event) => setNextRole(event.target.value)}
+              >
+                {(roles.length
+                  ? roles.map((role) => ({
+                      value: role.key,
+                      label: role.label,
+                    }))
+                  : Object.entries(ADMIN_ROLE_LABELS).map(([value, label]) => ({
+                      value,
+                      label,
+                    }))
+                ).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <p className="rounded-xl bg-well/60 px-3.5 py-3 text-[11px] leading-relaxed text-muted">
+              {adminRoleDescription(nextRole)}
+            </p>
+          </div>
+        ) : null}
+      </ReasonDialog>
+
       <InviteAdminModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
+        roles={roles}
         onInvited={() => {
           table.reload();
           setInviteOpen(false);
@@ -637,9 +852,15 @@ interface InviteAdminModalProps {
   open: boolean;
   onClose: () => void;
   onInvited: () => void;
+  roles?: AdminRoleDefinition[];
 }
 
-function InviteAdminModal({ open, onClose, onInvited }: InviteAdminModalProps) {
+function InviteAdminModal({
+  open,
+  onClose,
+  onInvited,
+  roles = [],
+}: InviteAdminModalProps) {
   const { toast } = useToast();
   const [formError, setFormError] = useState<string | null>(null);
   const {
@@ -757,12 +978,16 @@ function InviteAdminModal({ open, onClose, onInvited }: InviteAdminModalProps) {
 
         <SelectField
           label="Administrative role"
-          hint={ADMIN_ROLE_DESCRIPTIONS[role]}
+          hint={adminRoleDescription(role)}
           error={errors.adminRole?.message}
-          options={Object.entries(ADMIN_ROLE_LABELS).map(([value, label]) => ({
-            value,
-            label,
-          }))}
+          options={
+            roles.length
+              ? roles.map((item) => ({ value: item.key, label: item.label }))
+              : Object.entries(ADMIN_ROLE_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                }))
+          }
           register={register("adminRole")}
         />
 

@@ -8,6 +8,9 @@ import {
 import { buildQueryString } from "./pagination";
 import type {
   AdminAuthResult,
+  AdminDetailResult,
+  AdminInvitationDetailResult,
+  AdminInvitationListResult,
   AdminListResult,
   AdminOrderDetail,
   AdminOrderListResult,
@@ -16,12 +19,13 @@ import type {
   AdminOrderTimelineResult,
   AdminPermission,
   AdminProfile,
+  AdminRoleDetailResult,
+  AdminRoleListResult,
   AdminShipmentDetail,
   AdminShipmentListResult,
   AdminShipmentTrackingResult,
   AdminProductDetail,
   AdminProductListResult,
-  AdminRole,
   AdminStatus,
   AdminStoreDetail,
   AdminStoreHistoryResult,
@@ -43,6 +47,8 @@ import type {
   ApiShipment,
   ApiStore,
   ApiUser,
+  AuditLogDetailResult,
+  AuditLogListResult,
   AuthResult,
   DashboardChartsResult,
   DashboardMetricsResult,
@@ -54,14 +60,32 @@ import type {
   DisputeStatus,
   FinancialOverviewResult,
   FinancialRevenueResult,
+  MarketplaceCategoryDetailResult,
+  MarketplaceCategoryListResult,
+  MarketplaceCategoryProductsResult,
+  MarketplaceCategoryQuery,
+  MarketplaceFeaturedStoreListResult,
+  MarketplaceProductDetailResult,
+  MarketplaceProductListResult,
+  MarketplaceProductQuery,
+  MarketplaceRankedProductListResult,
+  MarketplaceSearchQuery,
+  MarketplaceSearchResult,
+  MarketplaceStoreDetailResult,
+  MarketplaceStoreListResult,
+  MarketplaceStoreProductsResult,
+  MarketplaceStoreQuery,
   NotificationListResult,
   PendingProductListResult,
+  PermissionCatalogue,
+  PlatformSettingsResult,
   ProductFilterOptions,
   ReconciliationReport,
   ReconciliationResult,
   StoreDocumentType,
   StorePayload,
   StoreStatus,
+  UpdatePlatformSettingsPayload,
   UploadPurpose,
   UploadedFile,
   VendorDetail,
@@ -400,6 +424,15 @@ export const adminAuthApi = {
       { method: "POST", body: JSON.stringify({ password }) },
       { auth: false },
     ),
+
+  acceptInvitation: (token: string, password: string) =>
+    apiFetch<AdminAuthResult>(
+      "/auth/admin/accept-invitation",
+      { method: "POST", body: JSON.stringify({ token, password }) },
+      {
+        auth: false,
+      },
+    ),
 };
 
 export const userApi = {
@@ -409,7 +442,41 @@ export const userApi = {
 export type AdminListQuery = {
   role?: string;
   status?: string;
+  invitationStatus?: string;
   search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminInvitationListQuery = {
+  status?: string;
+  role?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AdminRoleListQuery = {
+  search?: string;
+  system?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type AuditLogListQuery = {
+  search?: string;
+  admin?: string;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  createdFrom?: string;
+  createdTo?: string;
   sortBy?: string;
   sortOrder?: string;
   page?: number;
@@ -421,30 +488,199 @@ export interface AdminStatusUpdateResult {
   permissions: AdminPermission[];
 }
 
+const adminOptions = { refreshPath: ADMIN_REFRESH_PATH };
+
 export const adminApi = {
+  // Directory and account lifecycle.
   admins: (query: AdminListQuery = {}) =>
     apiFetch<AdminListResult>(
-      `/admin/admins${buildQueryString(query)}`,
+      `/admins${buildQueryString(query)}`,
       {},
-      { refreshPath: ADMIN_REFRESH_PATH },
+      adminOptions,
+    ),
+
+  getAdmin: (id: string) =>
+    apiFetch<AdminDetailResult>(
+      `/admins/${encodeURIComponent(id)}`,
+      {},
+      adminOptions,
     ),
 
   inviteAdmin: (payload: {
     name: string;
     email: string;
-    adminRole: AdminRole;
+    adminRole: string;
+    reason?: string;
+  }) =>
+    apiFetch<AdminStatusUpdateResult>(
+      "/admins/invitations",
+      { method: "POST", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  updateAdminStatus: (id: string, adminStatus: AdminStatus, reason?: string) =>
+    apiFetch<AdminStatusUpdateResult>(
+      `/admins/${encodeURIComponent(id)}/status`,
+      { method: "PATCH", body: JSON.stringify({ adminStatus, reason }) },
+      adminOptions,
+    ),
+
+  updateAdminRole: (id: string, adminRole: string, reason?: string) =>
+    apiFetch<AdminStatusUpdateResult>(
+      `/admins/${encodeURIComponent(id)}/role`,
+      { method: "PATCH", body: JSON.stringify({ adminRole, reason }) },
+      adminOptions,
+    ),
+
+  updateAdminPermissions: (
+    id: string,
+    payload: {
+      grants: AdminPermission[];
+      revocations: AdminPermission[];
+      reason?: string;
+    },
+  ) =>
+    apiFetch<AdminStatusUpdateResult>(
+      `/admins/${encodeURIComponent(id)}/permissions`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  // Invitations.
+  invitations: (query: AdminInvitationListQuery = {}) =>
+    apiFetch<AdminInvitationListResult>(
+      `/admins/invitations${buildQueryString(query)}`,
+      {},
+      adminOptions,
+    ),
+
+  invitation: (id: string) =>
+    apiFetch<AdminInvitationDetailResult>(
+      `/admins/invitations/${encodeURIComponent(id)}`,
+      {},
+      adminOptions,
+    ),
+
+  resendInvitation: (id: string) =>
+    apiFetch<{ invitation: AdminInvitationDetailResult["invitation"] }>(
+      `/admins/invitations/${encodeURIComponent(id)}/resend`,
+      { method: "POST" },
+      adminOptions,
+    ),
+
+  revokeInvitation: (id: string, reason?: string) =>
+    apiFetch<{ invitation: AdminInvitationDetailResult["invitation"] }>(
+      `/admins/invitations/${encodeURIComponent(id)}/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      adminOptions,
+    ),
+
+  // Roles and permission catalogue.
+  roles: (query: AdminRoleListQuery = {}) =>
+    apiFetch<AdminRoleListResult>(
+      `/admin-roles${buildQueryString(query)}`,
+      {},
+      adminOptions,
+    ),
+
+  role: (id: string) =>
+    apiFetch<AdminRoleDetailResult>(
+      `/admin-roles/${encodeURIComponent(id)}`,
+      {},
+      adminOptions,
+    ),
+
+  createRole: (payload: {
+    key: string;
+    label: string;
+    description?: string;
+    permissions: AdminPermission[];
+    reason?: string;
+  }) =>
+    apiFetch<AdminRoleDetailResult>(
+      "/admin-roles",
+      { method: "POST", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  updateRole: (
+    id: string,
+    payload: {
+      label?: string;
+      description?: string;
+      permissions?: AdminPermission[];
+      reason?: string;
+    },
+  ) =>
+    apiFetch<AdminRoleDetailResult>(
+      `/admin-roles/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  deleteRole: (id: string, reason?: string) =>
+    apiFetch<{ deleted: boolean; key: string }>(
+      `/admin-roles/${encodeURIComponent(id)}`,
+      { method: "DELETE", body: JSON.stringify({ reason }) },
+      adminOptions,
+    ),
+
+  permissions: () =>
+    apiFetch<PermissionCatalogue>("/permissions", {}, adminOptions),
+
+  // Append-only audit trail (read only).
+  auditLogs: (query: AuditLogListQuery = {}) =>
+    apiFetch<AuditLogListResult>(
+      `/audit-logs${buildQueryString(query)}`,
+      {},
+      adminOptions,
+    ),
+
+  auditLog: (id: string) =>
+    apiFetch<AuditLogDetailResult>(
+      `/audit-logs/${encodeURIComponent(id)}`,
+      {},
+      adminOptions,
+    ),
+
+  // Platform settings and own profile.
+  settings: () => apiFetch<PlatformSettingsResult>("/settings", {}, adminOptions),
+
+  updateSettings: (payload: UpdatePlatformSettingsPayload) =>
+    apiFetch<{
+      settings: PlatformSettingsResult["settings"];
+      changedGroups: string[];
+    }>(
+      "/settings",
+      { method: "PATCH", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  profile: () => apiFetch<AdminProfile>("/settings/profile", {}, adminOptions),
+
+  updateProfile: (payload: {
+    name?: string;
+    phone?: string | null;
+    profilePicture?: string | null;
+    reason?: string;
+  }) =>
+    apiFetch<AdminProfile>(
+      "/settings/profile",
+      { method: "PATCH", body: JSON.stringify(payload) },
+      adminOptions,
+    ),
+
+  // Convenience aliases for code that still calls the legacy paths.
+  inviteAdminLegacy: (payload: {
+    name: string;
+    email: string;
+    adminRole: string;
+    reason?: string;
   }) =>
     apiFetch<AdminStatusUpdateResult>(
       "/admin/admins/invite",
       { method: "POST", body: JSON.stringify(payload) },
-      { refreshPath: ADMIN_REFRESH_PATH },
-    ),
-
-  updateAdminStatus: (id: string, adminStatus: AdminStatus) =>
-    apiFetch<AdminStatusUpdateResult>(
-      `/admin/admins/${encodeURIComponent(id)}/status`,
-      { method: "PATCH", body: JSON.stringify({ adminStatus }) },
-      { refreshPath: ADMIN_REFRESH_PATH },
+      adminOptions,
     ),
 };
 
@@ -892,6 +1128,128 @@ export const notificationApi = {
 };
 
 export type { StoreStatus };
+
+/**
+ * Public marketplace data. `auth: false` keeps catalogue browsing anonymous
+ * even when a customer or administrator is signed in, so the dual-mode
+ * `/products` and `/stores` endpoints return the public contract.
+ */
+export const marketplaceApi = {
+  products: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceProductListResult>(
+      `/products${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  product: (productId: string) =>
+    apiFetch<MarketplaceProductDetailResult>(
+      `/products/${encodeURIComponent(productId)}`,
+      {},
+      { auth: false },
+    ),
+
+  featuredProducts: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceProductListResult>(
+      `/products/featured${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  popularProducts: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceRankedProductListResult>(
+      `/products/popular${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  trendingProducts: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceRankedProductListResult>(
+      `/products/trending${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  newArrivals: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceProductListResult>(
+      `/products/new-arrivals${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  onSale: (query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceProductListResult>(
+      `/products/on-sale${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  categories: (query: MarketplaceCategoryQuery = {}) =>
+    apiFetch<MarketplaceCategoryListResult>(
+      `/categories${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  category: (categoryId: string) =>
+    apiFetch<MarketplaceCategoryDetailResult>(
+      `/categories/${encodeURIComponent(categoryId)}`,
+      {},
+      { auth: false },
+    ),
+
+  categoryProducts: (
+    categoryId: string,
+    query: MarketplaceProductQuery = {},
+  ) =>
+    apiFetch<MarketplaceCategoryProductsResult>(
+      `/categories/${encodeURIComponent(categoryId)}/products${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  stores: (query: MarketplaceStoreQuery = {}) =>
+    apiFetch<MarketplaceStoreListResult>(
+      `/stores${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  store: (storeId: string) =>
+    apiFetch<MarketplaceStoreDetailResult>(
+      `/stores/${encodeURIComponent(storeId)}`,
+      {},
+      { auth: false },
+    ),
+
+  featuredStores: (query: MarketplaceStoreQuery = {}) =>
+    apiFetch<MarketplaceFeaturedStoreListResult>(
+      `/stores/featured${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  storeProducts: (storeId: string, query: MarketplaceProductQuery = {}) =>
+    apiFetch<MarketplaceStoreProductsResult>(
+      `/stores/${encodeURIComponent(storeId)}/products${buildQueryString(query)}`,
+      {},
+      { auth: false },
+    ),
+
+  search: (query: MarketplaceSearchQuery) =>
+    apiFetch<MarketplaceSearchResult>(
+      `/search${buildQueryString({
+        query: query.query ?? query.q,
+        category: query.category,
+        type: query.type,
+        sortBy: query.sortBy,
+        page: query.page,
+        limit: query.limit,
+      })}`,
+      {},
+      { auth: false },
+    ),
+};
 
 export const uploadApi = {
   file: (

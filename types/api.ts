@@ -1,13 +1,18 @@
 export type UserRole = "user" | "vendor" | "admin";
 
-export type AdminRole =
-  | "SUPER_ADMIN"
-  | "OPERATIONS_ADMIN"
-  | "FINANCE_ADMIN"
-  | "SUPPORT_ADMIN"
-  | "CATALOG_ADMIN";
+/**
+ * Built-in role keys are documented, but the API also stores administrator
+ * created roles, so the type stays open to any registry key.
+ */
+export type AdminRole = string;
 
 export type AdminStatus = "INVITED" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
+
+export type AdminInvitationStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REVOKED"
+  | "EXPIRED";
 
 export type AdminPermission =
   | "dashboard.view"
@@ -85,14 +90,231 @@ export interface PaginationMeta {
   pages: number;
 }
 
+export interface AdminInvitationSummary {
+  _id: string;
+  status: AdminInvitationStatus;
+  adminRole: string;
+  expiresAt: string | null;
+  lastSentAt: string | null;
+  acceptedAt: string | null;
+  sendCount: number;
+}
+
 export interface AdminListEntry {
   admin: ApiAdminUser;
   permissions: AdminPermission[];
+  invitation?: AdminInvitationSummary | null;
+  invitationCount?: number;
+}
+
+export interface AdminListSummary {
+  total: number;
+  active: number;
+  invited: number;
+  suspended: number;
+  deactivated: number;
 }
 
 export interface AdminListResult {
   admins: AdminListEntry[];
+  summary?: AdminListSummary;
   pagination: PaginationMeta;
+}
+
+export interface AdminInvitation {
+  _id: string;
+  admin: string | ApiAdminUser | null;
+  name: string;
+  email: string;
+  adminRole: string;
+  status: AdminInvitationStatus;
+  expiresAt: string | null;
+  invitedBy:
+    | string
+    | { _id: string; name: string; email: string; adminRole?: string }
+    | null;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  revokedBy:
+    | string
+    | { _id: string; name: string; email: string; adminRole?: string }
+    | null;
+  lastSentAt: string | null;
+  sendCount: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+  isExpired: boolean;
+}
+
+export interface AdminInvitationListResult {
+  invitations: AdminInvitation[];
+  summary: Record<AdminInvitationStatus, number>;
+  pagination: PaginationMeta;
+}
+
+export interface AdminInvitationDetailResult {
+  invitation: AdminInvitation;
+  admin: ApiAdminUser | null;
+}
+
+export interface AdminAuditEntry {
+  _id: string;
+  actor: string | null;
+  actorName?: string;
+  actorEmail?: string | null;
+  actorRole?: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  entityLabel: string | null;
+  previousState: unknown;
+  newState: unknown;
+  reason: string | null;
+  metadata?: unknown;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  method?: string | null;
+  path?: string | null;
+  createdAt: string;
+}
+
+export interface AdminDetailResult {
+  admin: ApiAdminUser;
+  permissions: AdminPermission[];
+  invitation: AdminInvitation | null;
+  invitations: AdminInvitation[];
+  auditLogs?: AdminAuditEntry[];
+}
+
+export interface AdminRoleDefinition {
+  _id: string;
+  key: string;
+  label: string;
+  description: string;
+  permissions: AdminPermission[];
+  system: boolean;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  adminCount?: number;
+}
+
+export interface AdminRoleListResult {
+  roles: AdminRoleDefinition[];
+  summary: { total: number; system: number; custom: number };
+  pagination: PaginationMeta;
+}
+
+export interface AdminRoleDetailResult {
+  role: AdminRoleDefinition;
+}
+
+export interface PermissionCatalogueEntry {
+  key: AdminPermission;
+  label: string;
+}
+
+export interface PermissionCatalogue {
+  permissions: PermissionCatalogueEntry[];
+  groups: Array<{ label: string; permissions: PermissionCatalogueEntry[] }>;
+}
+
+export type AuditEntityType =
+  | "admin"
+  | "admin_role"
+  | "invitation"
+  | "user"
+  | "vendor"
+  | "store"
+  | "product"
+  | "order"
+  | "payment"
+  | "escrow"
+  | "shipment"
+  | "dispute"
+  | "settings"
+  | "platform";
+
+export interface AuditLogEntry extends AdminAuditEntry {
+  entityType: AuditEntityType;
+}
+
+export interface AuditLogListResult {
+  logs: AuditLogEntry[];
+  summary: {
+    total: number;
+    entityTypes: Array<{ _id: string; count: number }>;
+    actions: Array<{ _id: string; count: number }>;
+  };
+  pagination: PaginationMeta;
+}
+
+export interface AuditLogDetailResult {
+  log: AuditLogEntry;
+}
+
+export interface PlatformSettings {
+  marketplace: {
+    name: string;
+    tagline: string;
+    supportEmail: string;
+    supportPhone: string | null;
+    currency: "NGN";
+    timezone: "Africa/Lagos";
+  };
+  commission: {
+    ratePercent: number;
+    note: string;
+    appliesToRecordedPayments: false;
+  };
+  productCategories: string[];
+  storeApproval: {
+    requireManualReview: boolean;
+    autoApproveVerifiedStores: boolean;
+    reviewSlaHours: number;
+  };
+  shipping: {
+    provider: "shipbubble";
+    defaultDeliveryFee: number;
+    freeShippingThreshold: number | null;
+    estimatedDeliveryDays: number;
+  };
+  notifications: {
+    emailEnabled: boolean;
+    adminDailyDigest: boolean;
+    vendorAlerts: boolean;
+    disputeAlerts: boolean;
+    storeSubmissionAlerts: boolean;
+  };
+  security: {
+    invitationExpiryHours: number;
+    passwordResetExpiryMinutes: number;
+    auditRetentionDays: number;
+    requireReasonForDestructiveActions: boolean;
+  };
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+export interface PlatformSettingsResult {
+  settings: PlatformSettings;
+  financialPolicy: {
+    commissionSnapshot: boolean;
+    escrowManagedBy: string;
+    note: string;
+  };
+}
+
+export interface UpdatePlatformSettingsPayload {
+  marketplace?: Partial<PlatformSettings["marketplace"]>;
+  commission?: Partial<Omit<PlatformSettings["commission"], "appliesToRecordedPayments">>;
+  productCategories?: string[];
+  storeApproval?: Partial<PlatformSettings["storeApproval"]>;
+  shipping?: Partial<PlatformSettings["shipping"]>;
+  notifications?: Partial<PlatformSettings["notifications"]>;
+  security?: Partial<PlatformSettings["security"]>;
+  reason?: string;
 }
 
 export interface AuthTokenPair {
@@ -220,6 +442,7 @@ export interface ApiStore {
   businessRegistrationDate?: string | null;
   logo?: string | null;
   coverImage?: string | null;
+  featured?: boolean;
   status: StoreStatus;
   rejectionReason?: string | null;
   submittedAt?: string | null;
@@ -561,6 +784,7 @@ export interface ApiProduct {
   compareAtPrice?: number | null;
   stock: number;
   images: string[];
+  featured?: boolean;
   status: ProductStatus;
   publicationStatus: ProductPublicationStatus;
   vendor?: string | ApiProductVendorSummary;
@@ -1467,4 +1691,206 @@ export interface AdminDisputeDetail {
     escrowModified: boolean;
     note: string;
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public marketplace                                                         */
+/* -------------------------------------------------------------------------- */
+
+export type PublicProductAvailability = "in_stock" | "out_of_stock";
+export type PublicProductSortField =
+  | "createdAt"
+  | "price"
+  | "name"
+  | "featured";
+export type PublicStoreSortField = "name" | "createdAt" | "productCount";
+export type PublicCategorySortField = "name" | "productCount";
+export type MarketplaceSearchType = "all" | "products" | "stores";
+export type MarketplaceSearchSort =
+  | "relevance"
+  | "newest"
+  | "price_asc"
+  | "price_desc";
+
+export interface MarketplaceProductStoreSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  logo?: string | null;
+  category: string;
+}
+
+export interface MarketplaceProductVendorSummary {
+  _id: string;
+  name: string;
+}
+
+export interface MarketplaceProduct {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  images: string[];
+  price: number;
+  compareAtPrice?: number | null;
+  discountPercent: number;
+  currency: "NGN";
+  stock: number;
+  inStock: boolean;
+  category: string;
+  store: MarketplaceProductStoreSummary | null;
+  vendor: MarketplaceProductVendorSummary | null;
+  featured: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface MarketplaceStoreAddress {
+  street?: string | null;
+  city?: string | null;
+  lga?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
+export interface MarketplaceStore {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  logo?: string | null;
+  coverImage?: string | null;
+  category: string;
+  address: MarketplaceStoreAddress | null;
+  location: { type: "Point"; coordinates: [number, number] } | null;
+  operatingHours: Array<{
+    day: string;
+    isOpen: boolean;
+    openingTime?: string | null;
+    closingTime?: string | null;
+  }>;
+  pickupInstructions?: string | null;
+  productCount: number;
+  featured: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface MarketplaceCategory {
+  key: string;
+  name: string;
+  productCount: number;
+  storeCount: number;
+  priceRange: {
+    min: number | null;
+    max: number | null;
+  };
+}
+
+export type MarketplaceProductQuery = {
+  search?: string;
+  category?: string;
+  store?: string;
+  vendor?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  availability?: PublicProductAvailability;
+  sortBy?: PublicProductSortField;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+};
+
+export type MarketplaceStoreQuery = {
+  search?: string;
+  category?: string;
+  state?: string;
+  city?: string;
+  lga?: string;
+  sortBy?: PublicStoreSortField;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+};
+
+export type MarketplaceCategoryQuery = {
+  search?: string;
+  sortBy?: PublicCategorySortField;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+};
+
+export interface MarketplaceSearchQuery {
+  query?: string;
+  q?: string;
+  category?: string;
+  type?: MarketplaceSearchType;
+  sortBy?: MarketplaceSearchSort;
+  page?: number;
+  limit?: number;
+}
+
+export interface MarketplaceProductListResult {
+  products: MarketplaceProduct[];
+  pagination: PaginationMeta;
+}
+
+export interface MarketplaceStoreListResult {
+  stores: MarketplaceStore[];
+  pagination: PaginationMeta;
+}
+
+export interface MarketplaceCategoryListResult {
+  categories: MarketplaceCategory[];
+  pagination: PaginationMeta;
+}
+
+export interface MarketplaceRankedProductListResult
+  extends MarketplaceProductListResult {
+  ranking: {
+    basis: "sales" | "newest";
+    windowDays: number | null;
+    label: string;
+  };
+}
+
+export interface MarketplaceFeaturedStoreListResult
+  extends MarketplaceStoreListResult {
+  ranking: {
+    basis: "featured" | "newest";
+    label: string;
+  };
+}
+
+export interface MarketplaceProductDetailResult {
+  product: MarketplaceProduct;
+  related: MarketplaceProduct[];
+}
+
+export interface MarketplaceStoreDetailResult {
+  store: MarketplaceStore;
+}
+
+export interface MarketplaceCategoryDetailResult {
+  category: MarketplaceCategory;
+}
+
+export interface MarketplaceCategoryProductsResult
+  extends MarketplaceProductListResult {
+  category: MarketplaceCategory;
+}
+
+export interface MarketplaceStoreProductsResult
+  extends MarketplaceProductListResult {
+  store: MarketplaceStore;
+}
+
+export interface MarketplaceSearchResult {
+  query: string;
+  type: MarketplaceSearchType;
+  category: string | null;
+  sortBy: MarketplaceSearchSort;
+  products?: MarketplaceProductListResult;
+  stores?: MarketplaceStoreListResult;
 }

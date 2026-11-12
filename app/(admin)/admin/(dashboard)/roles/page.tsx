@@ -1,5 +1,10 @@
-import ModuleRoute from "@/components/admin/ModuleRoute";
+import RequirePermission from "@/components/admin/RequirePermission";
+import RoleManagement from "@/components/admin/RoleManagement";
 
 export default function RolesPage() {
-  return <ModuleRoute href="/roles" />;
+  return (
+    <RequirePermission permissions={["roles.manage"]}>
+      <RoleManagement />
+    </RequirePermission>
+  );
 }

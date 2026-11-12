@@ -1,5 +1,10 @@
-import ModuleRoute from "@/components/admin/ModuleRoute";
+import AuditLogDirectory from "@/components/admin/AuditLogDirectory";
+import RequirePermission from "@/components/admin/RequirePermission";
 
 export default function AuditLogsPage() {
-  return <ModuleRoute href="/audit-logs" />;
+  return (
+    <RequirePermission permissions={["audit_logs.view"]}>
+      <AuditLogDirectory />
+    </RequirePermission>
+  );
 }

@@ -1,5 +1,10 @@
-import ModuleRoute from "@/components/admin/ModuleRoute";
+import PlatformSettingsScreen from "@/components/admin/PlatformSettings";
+import RequirePermission from "@/components/admin/RequirePermission";
 
 export default function SettingsPage() {
-  return <ModuleRoute href="/settings" />;
+  return (
+    <RequirePermission permissions={["settings.manage"]}>
+      <PlatformSettingsScreen />
+    </RequirePermission>
+  );
 }
