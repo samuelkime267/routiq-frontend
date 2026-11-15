@@ -11,9 +11,9 @@ import Button from "@/components/ui/Button";
 import { TextField } from "@/components/ui/FormField";
 import { ApiError, authApi } from "@/lib/api";
 import { verifyEmailSchema, type VerifyEmailValues } from "@/lib/schemas/auth";
-import { getStoredUser, getAccessToken, saveUser } from "@/lib/session";
+import { getStoredUser, saveUser } from "@/lib/session";
 import { useHydrated } from "@/lib/useHydrated";
-import { APP_URLS, roleHome, withSessionHandoff } from "@/lib/urls";
+import { AUTH_ROUTES } from "@/lib/urls";
 
 export default function VerifyEmailForm() {
   const hydrated = useHydrated();
@@ -31,10 +31,7 @@ export default function VerifyEmailForm() {
   });
 
   const storedUser = hydrated ? getStoredUser() : null;
-  const continueUrl = withSessionHandoff(
-    storedUser ? roleHome(storedUser.role) : `${APP_URLS.auth}/login`,
-    hydrated ? getAccessToken() : null,
-  );
+  const continueUrl = storedUser ? "/" : AUTH_ROUTES.login;
   const alreadyVerified = Boolean(storedUser?.isEmailVerified);
 
   async function handleSendCode() {
@@ -169,7 +166,7 @@ export default function VerifyEmailForm() {
 
       <div className="mt-6 flex items-center justify-between gap-4 text-[12px] text-muted">
         <Link
-          href="/login"
+          href={AUTH_ROUTES.login}
           className="font-semibold text-pri underline-offset-4 hover:underline"
         >
           Back to sign in

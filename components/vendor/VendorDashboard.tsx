@@ -9,14 +9,9 @@ import Button from "@/components/ui/Button";
 import { ApiError, storeApi, userApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/format";
-import { clearAuth, getAccessToken, getStoredUser, saveUser } from "@/lib/session";
+import { clearAuth, getStoredUser, saveUser } from "@/lib/session";
 import { useHydrated } from "@/lib/useHydrated";
-import {
-  APP_URLS,
-  authLoginUrl,
-  roleHome,
-  withSessionHandoff,
-} from "@/lib/urls";
+import { APP_URLS, authLoginUrl, loginForRole } from "@/lib/urls";
 import type { ApiStore, ApiUser, StoreStatus } from "@/types/api";
 
 const STATUS: Record<
@@ -194,10 +189,9 @@ export default function VendorDashboard() {
         if (cancelled) return;
 
         if (currentUser.role === "user") {
-          window.location.href = withSessionHandoff(
-            roleHome(currentUser.role),
-            getAccessToken(),
-          );
+          // The vendor host never keeps a customer session.
+          clearAuth();
+          window.location.href = loginForRole(currentUser.role);
           return;
         }
 

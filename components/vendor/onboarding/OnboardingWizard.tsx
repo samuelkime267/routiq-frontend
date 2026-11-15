@@ -11,8 +11,8 @@ import Button from "@/components/ui/Button";
 import { ApiError, storeApi, userApi } from "@/lib/api";
 import { applyApiFieldErrors } from "@/lib/form";
 import { formatDate } from "@/lib/format";
-import { clearAuth, getAccessToken } from "@/lib/session";
-import { APP_URLS, authLoginUrl, roleHome, withSessionHandoff } from "@/lib/urls";
+import { clearAuth } from "@/lib/session";
+import { APP_URLS, authLoginUrl, loginForRole } from "@/lib/urls";
 import type { ApiStore, ApiUser } from "@/types/api";
 import { ONBOARDING_STEPS } from "./constants";
 import {
@@ -126,10 +126,9 @@ export default function OnboardingWizard({ storeId }: OnboardingWizardProps) {
         if (cancelled) return;
 
         if (currentUser.role === "user") {
-          window.location.href = withSessionHandoff(
-            roleHome(currentUser.role),
-            getAccessToken(),
-          );
+          // The vendor host never keeps a customer session.
+          clearAuth();
+          window.location.href = loginForRole(currentUser.role);
           return;
         }
 

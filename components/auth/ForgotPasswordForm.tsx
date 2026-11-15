@@ -14,6 +14,7 @@ import {
   forgotPasswordSchema,
   type ForgotPasswordValues,
 } from "@/lib/schemas/auth";
+import { AUTH_ROUTES } from "@/lib/urls";
 
 export default function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function ForgotPasswordForm() {
           see it within a minute.
         </Alert>
         <Button
-          href="/login"
+          href={AUTH_ROUTES.login}
           fullWidth
           size="lg"
           className="mt-5"
@@ -121,7 +122,7 @@ export default function ForgotPasswordForm() {
       <p className="mt-6 text-center text-[13px] text-muted">
         Remembered it?{" "}
         <Link
-          href="/login"
+          href={AUTH_ROUTES.login}
           className="font-semibold text-pri underline-offset-4 hover:underline"
         >
           Back to sign in

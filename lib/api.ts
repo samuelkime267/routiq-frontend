@@ -1,7 +1,6 @@
 import {
   getAccessToken,
   getStoredUser,
-  saveAuth,
   saveUser,
   setAccessToken,
 } from "./session";
@@ -12,6 +11,7 @@ import type {
   AdminInvitationDetailResult,
   AdminInvitationListResult,
   AdminListResult,
+  AddressPayload,
   AdminOrderDetail,
   AdminOrderListResult,
   AdminOrderShipmentsResult,
@@ -50,6 +50,10 @@ import type {
   AuditLogDetailResult,
   AuditLogListResult,
   AuthResult,
+  CheckoutItemPayload,
+  CheckoutQuoteResult,
+  CheckoutStateResult,
+  CheckoutSummary,
   DashboardChartsResult,
   DashboardMetricsResult,
   DashboardOverview,
@@ -65,6 +69,10 @@ import type {
   MarketplaceCategoryProductsResult,
   MarketplaceCategoryQuery,
   MarketplaceFeaturedStoreListResult,
+  MarketplaceAddress,
+  MarketplaceAddressListResult,
+  MarketplaceOrderDetailResult,
+  MarketplaceOrderGroupListResult,
   MarketplaceProductDetailResult,
   MarketplaceProductListResult,
   MarketplaceProductQuery,
@@ -76,7 +84,11 @@ import type {
   MarketplaceStoreProductsResult,
   MarketplaceStoreQuery,
   NotificationListResult,
+  PaymentMethodsResult,
+  PaymentVerificationResult,
   PendingProductListResult,
+  PlaceCheckoutPayload,
+  PlaceCheckoutResult,
   PermissionCatalogue,
   PlatformSettingsResult,
   ProductFilterOptions,
@@ -134,16 +146,20 @@ interface ApiErrorBody {
 export class ApiError extends Error {
   status: number;
   fieldErrors: Record<string, string>;
+  /** Raw `data` block from an error response, when the API sends one. */
+  data: unknown;
 
   constructor(
     message: string,
     status: number,
     fieldErrors: Record<string, string> = {},
+    data: unknown = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.data = data;
   }
 }
 
@@ -175,63 +191,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
       body?.errors?.[0]?.message ||
       `Request failed with status ${response.status}`;
 
-    throw new ApiError(message, response.status, fieldErrors);
+    throw new ApiError(message, response.status, fieldErrors, body?.data ?? null);
   }
 
   return (body?.data ?? body) as T;
-}
-
-const HANDOFF_PARAM = "handoff";
-
-/**
- * After signing in on the auth host, the role app receives a short-lived
- * access token in the URL fragment. Exchange it for a first-party refresh
- * cookie on this host, then remove the token from the address bar.
- */
-async function adoptHandoffSession() {
-  if (typeof window === "undefined") return;
-
-  const hash = window.location.hash.replace(/^#/, "");
-  if (!hash) return;
-
-  const handoffToken = new URLSearchParams(hash).get(HANDOFF_PARAM);
-  if (!handoffToken) return;
-
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}${window.location.search}`,
-  );
-
-  try {
-    const response = await fetch(`${getApiUrl()}/auth/handoff`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${handoffToken}`,
-      },
-    });
-    const result = await parseResponse<{
-      user: ApiUser;
-      token: { accessToken: string };
-    }>(response);
-
-    saveAuth(result.token.accessToken, result.user);
-  } catch {
-    // The handoff token was expired or already used. Guards will redirect to
-    // the login screen if the user still has no session.
-  }
-}
-
-let sessionBootstrap: Promise<void> | null = null;
-
-export function ensureSessionBootstrap() {
-  if (typeof window === "undefined") return Promise.resolve();
-
-  if (!sessionBootstrap) sessionBootstrap = adoptHandoffSession();
-
-  return sessionBootstrap;
 }
 
 export const SESSION_EXPIRED_EVENT = "routiq:session-expired";
@@ -290,8 +253,6 @@ export async function apiFetch<T>(
     retry = true,
     refreshPath = DEFAULT_REFRESH_PATH,
   } = options;
-
-  await ensureSessionBootstrap();
 
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
@@ -1248,6 +1209,102 @@ export const marketplaceApi = {
       })}`,
       {},
       { auth: false },
+    ),
+};
+
+export const addressApi = {
+  list: () => apiFetch<MarketplaceAddressListResult>("/addresses"),
+
+  create: (payload: AddressPayload) =>
+    apiFetch<{ address: MarketplaceAddress }>("/addresses", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  update: (addressId: string, payload: Partial<AddressPayload>) =>
+    apiFetch<{ address: MarketplaceAddress }>(
+      `/addresses/${encodeURIComponent(addressId)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    ),
+
+  remove: (addressId: string) =>
+    apiFetch<{ deleted: boolean; promotedAddressId: string | null }>(
+      `/addresses/${encodeURIComponent(addressId)}`,
+      { method: "DELETE" },
+    ),
+
+  setDefault: (addressId: string) =>
+    apiFetch<{ address: MarketplaceAddress }>(
+      `/addresses/${encodeURIComponent(addressId)}/default`,
+      { method: "POST" },
+    ),
+};
+
+export interface CheckoutQuoteRequest {
+  items: CheckoutItemPayload[];
+  addressId?: string;
+  deliverySelections?: Record<string, string>;
+}
+
+export const checkoutApi = {
+  quote: (payload: CheckoutQuoteRequest) =>
+    apiFetch<CheckoutQuoteResult>("/checkout/quote", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  place: (payload: PlaceCheckoutPayload) =>
+    apiFetch<PlaceCheckoutResult>("/checkout", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  state: (masterOrderNumber: string) =>
+    apiFetch<CheckoutStateResult>(
+      `/checkout/${encodeURIComponent(masterOrderNumber)}`,
+    ),
+};
+
+export const paymentApi = {
+  methods: () =>
+    apiFetch<PaymentMethodsResult>(
+      "/payments/methods",
+      {},
+      { auth: false },
+    ),
+
+  /** Confirmation is always server-to-server; the browser cannot self-assert. */
+  verify: (masterOrderNumber: string) =>
+    apiFetch<{ payment: PaymentVerificationResult }>(
+      `/payments/verify/${encodeURIComponent(masterOrderNumber)}`,
+      { method: "POST" },
+    ),
+
+  retry: (masterOrderNumber: string) =>
+    apiFetch<{
+      masterOrderNumber: string;
+      summary: CheckoutSummary;
+      payment: PlaceCheckoutResult["payment"];
+    }>(`/payments/retry/${encodeURIComponent(masterOrderNumber)}`, {
+      method: "POST",
+    }),
+};
+
+export type CustomerOrderListQuery = {
+  status?: string;
+  page?: number;
+  limit?: number;
+};
+
+export const customerOrderApi = {
+  list: (query: CustomerOrderListQuery = {}) =>
+    apiFetch<MarketplaceOrderGroupListResult>(
+      `/orders/customer${buildQueryString(query)}`,
+    ),
+
+  get: (reference: string) =>
+    apiFetch<MarketplaceOrderDetailResult>(
+      `/orders/customer/${encodeURIComponent(reference)}`,
     ),
 };
 

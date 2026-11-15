@@ -8,34 +8,18 @@ const TOKEN_COOKIE = "routiq_token";
 const USER_COOKIE = "routiq_user";
 const COOKIE_DAYS = 30;
 
-function sharedCookieDomain() {
-  if (typeof window === "undefined") return undefined;
-
-  const host = window.location.hostname;
-
-  if (host === "localhost" || host.endsWith(".localhost")) {
-    return "localhost";
-  }
-  if (host === "127.0.0.1" || host === "::1") {
-    return undefined;
-  }
-
-  const parts = host.split(".");
-  return parts.length > 2 ? `.${parts.slice(-2).join(".")}` : undefined;
-}
-
 function writeCookie(name: string, value: string, maxAgeDays = COOKIE_DAYS) {
   if (typeof document === "undefined") return;
 
-  const domain = sharedCookieDomain();
   const maxAge = maxAgeDays * 24 * 60 * 60;
 
+  // Host-only cookie: each subdomain keeps its own session, which keeps the
+  // per-host auth model honest instead of leaking a token across apps.
   document.cookie = [
     `${name}=${encodeURIComponent(value)}`,
     "Path=/",
     `Max-Age=${maxAge}`,
     "SameSite=Lax",
-    domain ? `Domain=${domain}` : "",
   ]
     .filter(Boolean)
     .join("; ");
@@ -44,13 +28,11 @@ function writeCookie(name: string, value: string, maxAgeDays = COOKIE_DAYS) {
 function removeCookie(name: string) {
   if (typeof document === "undefined") return;
 
-  const domain = sharedCookieDomain();
   document.cookie = [
     `${name}=`,
     "Path=/",
     "Max-Age=0",
     "SameSite=Lax",
-    domain ? `Domain=${domain}` : "",
   ]
     .filter(Boolean)
     .join("; ");

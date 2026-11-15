@@ -102,6 +102,14 @@ const icons = {
       <path d="M9 13h6M9 17h6" />
     </>
   ),
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </>
+  ),
   "file-text": (
     <>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
@@ -120,6 +128,16 @@ const icons = {
     <>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6L5.5 5Z" />
+    </>
+  ),
+  heart: (
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+  ),
+  "help-circle": (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9a2.5 2.5 0 0 1 4.9.9c0 1.6-2.5 2.1-2.5 3.6" />
+      <path d="M12 17h.01" />
     </>
   ),
   key: (
@@ -164,6 +182,12 @@ const icons = {
   ),
   "message-square": (
     <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+  ),
+  minus: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12h8" />
+    </>
   ),
   "more-horizontal": (
     <>
@@ -231,11 +255,20 @@ const icons = {
       <path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" />
     </>
   ),
+  star: (
+    <path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9L6.4 20.3l1.1-6.2L3 9.7l6.2-.9L12 3Z" />
+  ),
   store: (
     <>
       <path d="M4 9h16l-1-5H5L4 9Z" />
       <path d="M5 9v11h14V9" />
       <path d="M9 20v-6h6v6" />
+    </>
+  ),
+  tag: (
+    <>
+      <path d="m20 13-7 7a2 2 0 0 1-2.8 0L3 12.8V3h9.8L20 10.2a2 2 0 0 1 0 2.8Z" />
+      <circle cx="7.5" cy="7.5" r="1.2" />
     </>
   ),
   trash: (

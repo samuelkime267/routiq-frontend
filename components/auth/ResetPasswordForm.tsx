@@ -14,6 +14,7 @@ import {
   resetPasswordSchema,
   type ResetPasswordValues,
 } from "@/lib/schemas/auth";
+import { AUTH_ROUTES } from "@/lib/urls";
 
 interface ResetPasswordFormProps {
   token: string;
@@ -58,7 +59,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           Request a new link from the forgot password page.
         </Alert>
         <Button
-          href="/forgot-password"
+          href={AUTH_ROUTES.forgotPassword}
           fullWidth
           size="lg"
           className="mt-5"
@@ -81,7 +82,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           For your security, any other sessions will expire soon.
         </Alert>
         <Button
-          href="/login"
+          href={AUTH_ROUTES.login}
           fullWidth
           size="lg"
           className="mt-5"
@@ -138,7 +139,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
       <p className="mt-6 text-center text-[13px] text-muted">
         <Link
-          href="/login"
+          href={AUTH_ROUTES.login}
           className="font-semibold text-pri underline-offset-4 hover:underline"
         >
           Back to sign in

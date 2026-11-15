@@ -22,8 +22,13 @@ export default function VendorHeader() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const displayUser = user ?? (hydrated ? getStoredUser() : null);
+  // Auth pages are reachable without a session; probing `/user/me` there would
+  // bounce a 401 straight back to the sign-in screen in a reload loop.
+  const onAuthRoute = pathname.startsWith("/auth");
 
   useEffect(() => {
+    if (onAuthRoute) return;
+
     let cancelled = false;
 
     userApi

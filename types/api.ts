@@ -1894,3 +1894,408 @@ export interface MarketplaceSearchResult {
   products?: MarketplaceProductListResult;
   stores?: MarketplaceStoreListResult;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Checkout, addresses and customer orders                                    */
+/* -------------------------------------------------------------------------- */
+
+export type AddressValidationStatus = "unverified" | "valid" | "invalid";
+
+export interface MarketplaceAddress {
+  _id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  street: string;
+  city: string;
+  lga: string;
+  state: string;
+  country: string;
+  landmark: string | null;
+  postalCode: string | null;
+  isDefault: boolean;
+  validation: {
+    provider: string | null;
+    status: AddressValidationStatus;
+    message: string | null;
+    validatedAt: string | null;
+  };
+  lastUsedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface MarketplaceAddressListResult {
+  addresses: MarketplaceAddress[];
+}
+
+export interface AddressPayload {
+  label?: string;
+  recipientName: string;
+  phone: string;
+  street: string;
+  city: string;
+  lga: string;
+  state: string;
+  country?: "Nigeria";
+  landmark?: string;
+  postalCode?: string;
+  isDefault?: boolean;
+}
+
+export type DeliveryProvider = "shipbubble" | "platform";
+
+export interface DeliveryOption {
+  id: string;
+  courier: string;
+  service: string | null;
+  fee: number;
+  currency: "NGN";
+  provider: DeliveryProvider;
+  estimatedDaysMin: number | null;
+  estimatedDaysMax: number | null;
+  estimatedDeliveryText: string | null;
+  note: string | null;
+}
+
+export interface StoreDeliveryQuote {
+  available: boolean;
+  options: DeliveryOption[];
+  selectedOptionId: string | null;
+  message: string | null;
+}
+
+export interface CheckoutLine {
+  product: string;
+  name: string;
+  image: string | null;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  compareAtPrice: number | null;
+  lineTotal: number;
+  expectedUnitPrice: number | null;
+  priceChanged: boolean;
+}
+
+export interface CheckoutStoreSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+  city: string | null;
+  state: string | null;
+}
+
+export interface CheckoutGroup {
+  store: CheckoutStoreSummary;
+  vendor: string;
+  items: CheckoutLine[];
+  subtotal: number;
+  delivery: StoreDeliveryQuote;
+  selectedDelivery: DeliveryOption | null;
+  deliveryFee: number;
+  discount: number;
+  total: number;
+  estimatedDeliveryAt: string | null;
+}
+
+export interface CheckoutAddressSnapshot {
+  _id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  street: string;
+  city: string;
+  lga: string;
+  state: string;
+  country: string;
+  landmark: string | null;
+  postalCode: string | null;
+}
+
+export type CheckoutIssueCode =
+  | "empty_cart"
+  | "product_unavailable"
+  | "store_unavailable"
+  | "insufficient_stock"
+  | "price_changed"
+  | "address_invalid"
+  | "delivery_unavailable";
+
+export interface CheckoutIssue {
+  code: CheckoutIssueCode;
+  message: string;
+  productId?: string;
+  productName?: string;
+  storeId?: string;
+  availableStock?: number;
+  expectedUnitPrice?: number;
+  currentUnitPrice?: number;
+}
+
+export interface CheckoutSummary {
+  currency: "NGN";
+  itemCount: number;
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  discount: number;
+  total: number;
+}
+
+export interface CheckoutQuote {
+  groups: CheckoutGroup[];
+  summary: CheckoutSummary;
+  issues: CheckoutIssue[];
+  address: CheckoutAddressSnapshot | null;
+  deliveryAvailable: boolean;
+  blocking: boolean;
+  fingerprint: string;
+}
+
+export interface CheckoutQuoteResult {
+  quote: CheckoutQuote;
+}
+
+export interface CheckoutItemPayload {
+  productId: string;
+  quantity: number;
+  expectedUnitPrice?: number;
+}
+
+export interface PlaceCheckoutPayload {
+  key: string;
+  items: CheckoutItemPayload[];
+  addressId: string;
+  deliverySelections?: Record<string, string>;
+  expectedTotal?: number;
+}
+
+export interface CheckoutPayment {
+  provider: "paystack" | null;
+  initialized: boolean;
+  reference: string | null;
+  authorizationUrl: string | null;
+  accessCode: string | null;
+  status: "pending" | "paid" | "failed";
+  message: string | null;
+}
+
+export interface PlaceCheckoutResult {
+  resumed: boolean;
+  masterOrderNumber: string;
+  orders: MarketplaceOrderGroupOrder[];
+  summary: CheckoutSummary;
+  payment: CheckoutPayment;
+}
+
+export interface CheckoutState {
+  masterOrderNumber: string;
+  status: "creating" | "created" | "initialized" | "paid" | "failed";
+  createdAt: string | null;
+  paidAt: string | null;
+  summary: CheckoutSummary;
+  address: CheckoutAddressSnapshot | null;
+  groups: Array<{
+    store: CheckoutStoreSummary;
+    items: CheckoutLine[];
+    subtotal: number;
+    deliveryFee: number;
+    discount: number;
+    total: number;
+    delivery: DeliveryOption | null;
+    estimatedDeliveryAt: string | null;
+  }>;
+  orders: Array<{
+    _id: string;
+    orderNumber: string;
+    subOrderNumber: string | null;
+    store: string;
+    status: string;
+    paymentStatus: string;
+    subtotal: number;
+    shippingFee: number;
+    discount: number;
+    total: number;
+    itemCount: number;
+    expectedDeliveryAt: string | null;
+    placedAt: string | null;
+  }>;
+  payment: {
+    provider: string | null;
+    reference: string | null;
+    initialized: boolean;
+    status: "paid" | "pending" | "failed";
+    failureReason: string | null;
+    canRetry: boolean;
+  };
+}
+
+export interface CheckoutStateResult {
+  checkout: CheckoutState;
+}
+
+export interface PaymentMethod {
+  id: string;
+  label: string;
+}
+
+export interface PaymentMethodsResult {
+  currency: "NGN";
+  provider: "paystack" | null;
+  configured: boolean;
+  publicKey: string | null;
+  channels: PaymentMethod[];
+  methods: PaymentMethod[];
+}
+
+export interface PaymentVerificationResult {
+  masterOrderNumber: string;
+  status: "paid" | "pending" | "failed";
+  message: string;
+  paymentReference: string | null;
+  paidAt: string | null;
+  orders: Array<{
+    _id: string;
+    orderNumber: string;
+    store: string;
+    total: number;
+    paymentStatus: string;
+    status: string;
+  }>;
+}
+
+export interface MarketplaceOrderGroupOrder {
+  _id: string;
+  orderNumber: string;
+  subOrderNumber?: string | null;
+  store: unknown;
+  status: string;
+  paymentStatus: string;
+  subtotal?: number;
+  shippingFee?: number;
+  discount?: number;
+  total: number;
+  itemCount: number;
+  expectedDeliveryAt?: string | null;
+  placedAt?: string | null;
+}
+
+export interface MarketplaceOrderGroup {
+  masterOrderNumber: string;
+  orderCount: number;
+  itemCount: number;
+  status: string;
+  paymentStatus: string;
+  subtotal: number;
+  deliveryFee: number;
+  discount: number;
+  total: number;
+  placedAt: string | null;
+  expectedDeliveryAt: string | null;
+  orders: Array<{
+    _id: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    total: number;
+    itemCount: number;
+    store: CheckoutStoreSummary | null;
+  }>;
+  isPendingPayment: boolean;
+  createdAt: string | null;
+  retrievedAt: string;
+}
+
+export interface MarketplaceOrderGroupListResult {
+  orders: MarketplaceOrderGroup[];
+  pagination: PaginationMeta;
+}
+
+export interface MarketplaceOrderDetail {
+  masterOrderNumber: string;
+  orders: Array<{
+    _id: string;
+    orderNumber: string;
+    subOrderNumber: string | null;
+    masterOrderNumber: string;
+    store: CheckoutStoreSummary | null;
+    items: Array<{
+      product: string;
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    subtotal: number;
+    shippingFee: number;
+    discount: number;
+    total: number;
+    status: string;
+    paymentStatus: string;
+    shippingAddress: CheckoutAddressSnapshot | null;
+    timeline: Array<{
+      type: string;
+      occurredAt: string;
+      description: string | null;
+    }>;
+    placedAt: string | null;
+    expectedDeliveryAt: string | null;
+    deliveredAt: string | null;
+    cancelledAt: string | null;
+    createdAt: string | null;
+  }>;
+  payments: Array<{
+    _id: string;
+    reference: string;
+    amount: number;
+    currency: string;
+    status: string;
+    channel: string | null;
+    provider: string | null;
+    paidAt: string | null;
+    failureReason: string | null;
+    createdAt: string | null;
+  }>;
+  shipments: Array<{
+    _id: string;
+    trackingNumber: string;
+    provider: string | null;
+    status: string;
+    providerStatus: string | null;
+    trackingUrl: string | null;
+    courier: Record<string, unknown> | null;
+    failureReason: string | null;
+    estimatedDeliveryAt: string | null;
+    deliveredAt: string | null;
+    lastEventAt: string | null;
+    events: Array<{
+      status: string | null;
+      message: string | null;
+      location: string | null;
+      occurredAt: string | null;
+    }>;
+    createdAt: string | null;
+  }>;
+  summary: {
+    currency: string;
+    orderCount: number;
+    itemCount: number;
+    subtotal: number;
+    deliveryFee: number;
+    discount: number;
+    total: number;
+    orderNumbers: string[];
+    masterOrderNumber: string;
+  };
+  timeline: Array<{
+    type: string;
+    occurredAt: string;
+    description: string | null;
+  }>;
+}
+
+export interface MarketplaceOrderDetailResult {
+  order: MarketplaceOrderDetail;
+}

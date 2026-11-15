@@ -27,11 +27,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // Auth application
+  // The standalone auth host is retired: every app now serves its own
+  // `/auth/*` routes, so old links land on the marketplace equivalent.
   if (hostname === `auth.${ROOT_DOMAIN}`) {
-    url.pathname = pathname === "/" ? "/auth" : `/auth${pathname}`;
+    const target = new URL(request.nextUrl.toString());
+    target.protocol = request.nextUrl.protocol;
+    target.host = ROOT_DOMAIN;
+    target.pathname = pathname === "/" ? "/auth" : `/auth${pathname}`;
 
-    return NextResponse.rewrite(url);
+    return NextResponse.redirect(target.toString(), 308);
   }
 
   // Vendor application

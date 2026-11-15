@@ -18,19 +18,34 @@ import { ApiError, authApi } from "@/lib/api";
 import { applyApiFieldErrors } from "@/lib/form";
 import { registerSchema, type RegisterValues } from "@/lib/schemas/auth";
 import { saveAuth } from "@/lib/session";
-import { roleHome, withSessionHandoff } from "@/lib/urls";
+import {
+  AUTH_ROUTES,
+  authLoginUrl,
+  readNextPath,
+  type AuthScope,
+} from "@/lib/urls";
+import { useHydrated } from "@/lib/useHydrated";
 import { cn } from "@/lib/cn";
 
 interface RegisterFormProps {
+  /** Which app host is rendering the form. The vendor host is vendor-only. */
+  scope?: AuthScope;
   initialRole?: "user" | "vendor";
 }
 
 export default function RegisterForm({
-  initialRole = "user",
+  scope = "marketplace",
+  initialRole,
 }: RegisterFormProps) {
   const router = useRouter();
-  const [role, setRole] = useState<"user" | "vendor">(initialRole);
+  const hydrated = useHydrated();
+  const lockedRole = scope === "vendor" ? "vendor" : null;
+  const [role, setRole] = useState<"user" | "vendor">(
+    lockedRole ?? initialRole ?? "user",
+  );
   const [error, setError] = useState<string | null>(null);
+  const nextPath = hydrated ? readNextPath() : null;
+
   const {
     register,
     handleSubmit,
@@ -63,16 +78,11 @@ export default function RegisterForm({
       saveAuth(result.token.accessToken, result.user);
 
       if (!result.user.isEmailVerified) {
-        router.push("/verify-email");
+        router.push(AUTH_ROUTES.verifyEmail);
         return;
       }
 
-      window.location.assign(
-        withSessionHandoff(
-          roleHome(result.user.role),
-          result.token.accessToken,
-        ),
-      );
+      window.location.assign(nextPath ?? "/");
     } catch (registerError) {
       if (registerError instanceof ApiError) {
         setError(registerError.message);
@@ -100,7 +110,9 @@ export default function RegisterForm({
     <>
       <AuthIntro
         eyebrow="Get started"
-        title={role === "vendor" ? "Open your storefront" : "Create your account"}
+        title={
+          role === "vendor" ? "Open your storefront" : "Create your account"
+        }
         description={
           role === "vendor"
             ? "Create a vendor account, then complete your store and KYB details for review."
@@ -114,28 +126,30 @@ export default function RegisterForm({
         </Alert>
       ) : null}
 
-      <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-soft p-1">
-        {(
-          [
-            { value: "user" as const, label: "I'm shopping" },
-            { value: "vendor" as const, label: "I'm selling" },
-          ]
-        ).map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setRole(option.value)}
-            className={cn(
-              "rounded-lg px-3 py-2 text-[12px] font-semibold transition",
-              role === option.value
-                ? "bg-white text-pri shadow-sm"
-                : "text-muted hover:text-ink",
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {lockedRole ? null : (
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-soft p-1">
+          {(
+            [
+              { value: "user" as const, label: "I'm shopping" },
+              { value: "vendor" as const, label: "I'm selling" },
+            ]
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setRole(option.value)}
+              className={cn(
+                "rounded-lg px-3 py-2 text-[12px] font-semibold transition",
+                role === option.value
+                  ? "bg-white text-pri shadow-sm"
+                  : "text-muted hover:text-ink",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <TextField
@@ -204,7 +218,7 @@ export default function RegisterForm({
       <p className="mt-6 text-center text-[13px] text-muted">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={authLoginUrl(nextPath)}
           className="font-semibold text-pri underline-offset-4 hover:underline"
         >
           Sign in
