@@ -30,12 +30,24 @@ export function proxy(request: NextRequest) {
   // The standalone auth host is retired: every app now serves its own
   // `/auth/*` routes, so old links land on the marketplace equivalent.
   if (hostname === `auth.${ROOT_DOMAIN}`) {
-    const target = new URL(request.nextUrl.toString());
-    target.protocol = request.nextUrl.protocol;
-    target.host = ROOT_DOMAIN;
-    target.pathname = pathname === "/" ? "/auth" : `/auth${pathname}`;
+    const authPath = pathname.startsWith("/auth")
+      ? pathname
+      : pathname === "/"
+        ? "/auth"
+        : `/auth${pathname}`;
+    const target = `${request.nextUrl.protocol}//${ROOT_DOMAIN}${authPath}${request.nextUrl.search}`;
 
-    return NextResponse.redirect(target.toString(), 308);
+    // `next dev` serves every host from the bound hostname, so Next resolves
+    // this cross-host redirect as same-origin and strips it back to a path.
+    // Browsers would then bounce on the retired host, so serve the page
+    // directly in development and keep the permanent redirect for production.
+    if (process.env.NODE_ENV !== "production") {
+      url.pathname = `/marketplace${authPath}`;
+
+      return NextResponse.rewrite(url);
+    }
+
+    return NextResponse.redirect(target, 308);
   }
 
   // Vendor application

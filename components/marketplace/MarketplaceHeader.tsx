@@ -14,7 +14,7 @@ import Modal from "@/components/ui/Modal";
 import SearchInput from "@/components/ui/SearchInput";
 import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/format";
-import { authLoginUrl, authRegisterUrl } from "@/lib/urls";
+import { authLoginUrl, vendorRegisterUrl } from "@/lib/urls";
 import Skeleton from "@/components/ui/Skeleton";
 import { useHydrated } from "@/lib/useHydrated";
 
@@ -454,7 +454,7 @@ export default function MarketplaceHeader() {
 
             <div className="mt-auto border-t border-line p-4">
               <a
-                href={authRegisterUrl("vendor")}
+                href={vendorRegisterUrl()}
                 className="flex items-center justify-between rounded-xl bg-pri px-4 py-3 text-[12px] font-semibold text-white transition hover:bg-pri-deep focus-visible:ring-4 focus-visible:ring-pri/30 focus-visible:outline-none"
               >
                 Become a vendor

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Icon, Logo } from "@/components/icons";
 import MarketplaceContainer from "@/components/marketplace/MarketplaceContainer";
 import { marketplaceConfig } from "@/config/marketplace";
-import { authLoginUrl, authRegisterUrl } from "@/lib/urls";
+import { authLoginUrl, vendorRegisterUrl } from "@/lib/urls";
 
 const shopLinks = [
   { label: "All products", href: "/products" },
@@ -17,7 +17,7 @@ const companyLinks = [
   { label: "About Routiq", href: "/about" },
   { label: "Contact", href: "/contact" },
   { label: "Delivery information", href: "/delivery" },
-  { label: "Become a vendor", href: authRegisterUrl("vendor") },
+  { label: "Become a vendor", href: vendorRegisterUrl() },
 ];
 
 const supportLinks = [

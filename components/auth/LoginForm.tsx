@@ -21,6 +21,7 @@ import {
   authRegisterUrl,
   loginForRole,
   readNextPath,
+  vendorRegisterUrl,
   type AuthScope,
 } from "@/lib/urls";
 import { useHydrated } from "@/lib/useHydrated";
@@ -185,7 +186,7 @@ export default function LoginForm({ scope = "marketplace" }: LoginFormProps) {
           <p className="rounded-xl bg-well px-4 py-3 text-[12px]">
             Selling on Routiq?{" "}
             <Link
-              href={authRegisterUrl("vendor")}
+              href={vendorRegisterUrl()}
               className="font-semibold text-pri underline-offset-4 hover:underline"
             >
               Open a vendor account

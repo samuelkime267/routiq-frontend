@@ -49,6 +49,8 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   "transactions.view": "View transactions",
   "escrow.view": "View escrow",
   "financials.view": "View financial reports",
+  "withdrawals.view": "View withdrawals",
+  "withdrawals.manage": "Review withdrawals and payout accounts",
   "shipments.view": "View shipments",
   "shipments.manage": "Manage shipments",
   "disputes.view": "View disputes",

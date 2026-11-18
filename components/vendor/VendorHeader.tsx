@@ -53,7 +53,7 @@ export default function VendorHeader() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onAuthRoute]);
 
   async function handleLogout() {
     setLoggingOut(true);

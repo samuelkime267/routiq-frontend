@@ -40,6 +40,11 @@ import type {
   AdminUserListResult,
   AdminUserOrdersResult,
   AdminUserTransactionsResult,
+  AdminBankAccount,
+  AdminBankAccountListResult,
+  AdminWithdrawal,
+  AdminWithdrawalDecisionPayload,
+  AdminWithdrawalListResult,
   ApiAdminNote,
   ApiAdminUser,
   ApiNotification,
@@ -100,13 +105,26 @@ import type {
   UpdatePlatformSettingsPayload,
   UploadPurpose,
   UploadedFile,
+  VendorBankAccount,
+  VendorBankAccountListResult,
+  VendorDashboard,
   VendorDetail,
+  VendorFinanceResult,
   VendorListResult,
   VendorNotesResult,
+  VendorOrderDetailResult,
+  VendorOrderListResult,
   VendorOrdersResult,
+  VendorProductDetailResult,
+  VendorProductListResult,
   VendorProductsResult,
+  VendorSettingsSnapshot,
+  VendorTransactionListResult,
   VendorTransactionsResult,
   VendorVerificationResult,
+  VendorWithdrawal,
+  VendorWithdrawalListResult,
+  VendorWithdrawalResult,
 } from "@/types/api";
 
 const CONFIGURED_API_URL =
@@ -1089,6 +1107,361 @@ export const notificationApi = {
 };
 
 export type { StoreStatus };
+
+/* -------------------------------------------------------------------------- */
+/* Vendor portal                                                              */
+/* -------------------------------------------------------------------------- */
+
+export type VendorProductListQuery = {
+  search?: string;
+  status?: string;
+  publicationStatus?: string;
+  category?: string;
+  inventory?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type VendorProductPayload = {
+  name?: string;
+  category?: string;
+  description?: string;
+  price?: number;
+  compareAtPrice?: number;
+  stock?: number;
+  sku?: string;
+  images?: string[];
+};
+
+export type VendorOrderListQuery = {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  fulfillmentStatus?: string;
+  shipmentStatus?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type VendorTransactionListQuery = {
+  search?: string;
+  type?: string;
+  status?: string;
+  channel?: string;
+  order?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type VendorWithdrawalListQuery = {
+  search?: string;
+  status?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type VendorBankAccountPayload = {
+  bankName: string;
+  bankCode: string;
+  accountName: string;
+  accountNumber: string;
+  isDefault?: boolean;
+};
+
+/**
+ * Vendor self-service API.
+ *
+ * Every endpoint resolves the vendor from the access token, so no call takes a
+ * vendor id. Vendor calls refresh through the standard customer/vendor path,
+ * not the admin one.
+ */
+export const vendorPortalApi = {
+  settings: () => apiFetch<VendorSettingsSnapshot>("/vendors/me"),
+
+  updateSettings: (payload: {
+    profile?: {
+      name?: string;
+      phone?: string | null;
+      profilePicture?: string | null;
+    };
+    storefront?: {
+      description?: string | null;
+      phoneNumber?: string;
+      logo?: string | null;
+      coverImage?: string | null;
+    };
+    operations?: {
+      pickupInstructions?: string | null;
+      operatingHours?: Array<{
+        day: string;
+        isOpen: boolean;
+        openingTime?: string | null;
+        closingTime?: string | null;
+      }>;
+    };
+  }) =>
+    apiFetch<VendorSettingsSnapshot>("/vendors/me/settings", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  dashboard: (query: { range?: string; from?: string; to?: string } = {}) =>
+    apiFetch<VendorDashboard>(
+      `/vendors/me/dashboard${buildQueryString(query)}`,
+    ),
+
+  finance: (query: { range?: string; from?: string; to?: string } = {}) =>
+    apiFetch<VendorFinanceResult>(
+      `/vendors/me/finance${buildQueryString(query)}`,
+    ),
+
+  products: (query: VendorProductListQuery = {}) =>
+    apiFetch<VendorProductListResult>(
+      `/products/vendor${buildQueryString(query)}`,
+    ),
+
+  product: (productId: string) =>
+    apiFetch<VendorProductDetailResult>(
+      `/products/vendor/${encodeURIComponent(productId)}`,
+    ),
+
+  createProduct: (payload: VendorProductPayload) =>
+    apiFetch<{ product: ApiProduct }>("/products/vendor", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateProduct: (productId: string, payload: VendorProductPayload) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/vendor/${encodeURIComponent(productId)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    ),
+
+  updateStock: (
+    productId: string,
+    payload: { stock?: number; delta?: number },
+  ) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/vendor/${encodeURIComponent(productId)}/stock`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    ),
+
+  submitProduct: (productId: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/vendor/${encodeURIComponent(productId)}/submit`,
+      { method: "POST" },
+    ),
+
+  setProductPublication: (productId: string, publish: boolean) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/vendor/${encodeURIComponent(productId)}/publication`,
+      { method: "PATCH", body: JSON.stringify({ publish }) },
+    ),
+
+  archiveProduct: (productId: string) =>
+    apiFetch<{ product: ApiProduct }>(
+      `/products/vendor/${encodeURIComponent(productId)}/archive`,
+      { method: "POST" },
+    ),
+
+  deleteProduct: (productId: string) =>
+    apiFetch<{ deleted: boolean; archived: boolean }>(
+      `/products/vendor/${encodeURIComponent(productId)}`,
+      { method: "DELETE" },
+    ),
+
+  orders: (query: VendorOrderListQuery = {}) =>
+    apiFetch<VendorOrderListResult>(`/orders/vendor${buildQueryString(query)}`),
+
+  order: (orderId: string) =>
+    apiFetch<VendorOrderDetailResult>(
+      `/orders/vendor/${encodeURIComponent(orderId)}`,
+    ),
+
+  updateOrderStatus: (
+    orderId: string,
+    payload: {
+      status: "confirmed" | "processing" | "delivered" | "cancelled";
+      reason?: string;
+    },
+  ) =>
+    apiFetch<{ order: unknown }>(
+      `/orders/vendor/${encodeURIComponent(orderId)}/status`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+  shipOrder: (
+    orderId: string,
+    payload: {
+      courierName: string;
+      trackingNumber: string;
+      trackingUrl?: string;
+      estimatedDeliveryAt?: string;
+      note?: string;
+    },
+  ) =>
+    apiFetch<{ order: unknown; shipment: unknown }>(
+      `/orders/vendor/${encodeURIComponent(orderId)}/shipment`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+  transactions: (query: VendorTransactionListQuery = {}) =>
+    apiFetch<VendorTransactionListResult>(
+      `/transactions/vendor${buildQueryString(query)}`,
+    ),
+
+  withdrawals: (query: VendorWithdrawalListQuery = {}) =>
+    apiFetch<VendorWithdrawalListResult>(
+      `/withdrawals/vendor${buildQueryString(query)}`,
+    ),
+
+  withdrawal: (withdrawalId: string) =>
+    apiFetch<{ withdrawal: VendorWithdrawal }>(
+      `/withdrawals/vendor/${encodeURIComponent(withdrawalId)}`,
+    ),
+
+  createWithdrawal: (payload: {
+    amount: number;
+    bankAccountId: string;
+    idempotencyKey?: string;
+    note?: string;
+  }) =>
+    apiFetch<VendorWithdrawalResult>("/withdrawals/vendor", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  cancelWithdrawal: (withdrawalId: string, reason?: string) =>
+    apiFetch<VendorWithdrawalResult>(
+      `/withdrawals/vendor/${encodeURIComponent(withdrawalId)}/cancel`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+
+  bankAccounts: () =>
+    apiFetch<VendorBankAccountListResult>("/vendors/me/bank-accounts"),
+
+  createBankAccount: (payload: VendorBankAccountPayload) =>
+    apiFetch<{ account: VendorBankAccount }>("/vendors/me/bank-accounts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateBankAccount: (
+    accountId: string,
+    payload: Partial<VendorBankAccountPayload>,
+  ) =>
+    apiFetch<{ account: VendorBankAccount }>(
+      `/vendors/me/bank-accounts/${encodeURIComponent(accountId)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    ),
+
+  setDefaultBankAccount: (accountId: string) =>
+    apiFetch<{ account: VendorBankAccount }>(
+      `/vendors/me/bank-accounts/${encodeURIComponent(accountId)}/default`,
+      { method: "POST" },
+    ),
+
+  deleteBankAccount: (accountId: string) =>
+    apiFetch<{ deleted: boolean; archived: boolean }>(
+      `/vendors/me/bank-accounts/${encodeURIComponent(accountId)}`,
+      { method: "DELETE" },
+    ),
+};
+
+/**
+ * Vendor notifications share the generic notification API, but refresh through
+ * the vendor/customer path rather than the admin one.
+ */export const vendorNotificationApi = {
+  list: (query: { unreadOnly?: boolean; page?: number; limit?: number } = {}) =>
+    apiFetch<NotificationListResult>(
+      `/notifications${buildQueryString(query)}`,
+    ),
+
+  markRead: (id: string) =>
+    apiFetch<{ notification: ApiNotification }>(
+      `/notifications/${encodeURIComponent(id)}/read`,
+      { method: "PATCH" },
+    ),
+
+  markAllRead: () =>
+    apiFetch<{ updated: number }>("/notifications/read-all", {
+      method: "PATCH",
+    }),
+};
+
+export type AdminWithdrawalListQuery = {
+  status?: string;
+  scope?: "open" | "settled";
+  vendor?: string;
+  search?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+/**
+ * Withdrawal review belongs to finance. Every call refreshes through the admin
+ * session path so an expired console token is renewed, not rejected.
+ */
+export const adminWithdrawalApi = {
+  list: (query: AdminWithdrawalListQuery = {}) =>
+    apiFetch<AdminWithdrawalListResult>(
+      `/withdrawals/admin${buildQueryString(query)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  get: (withdrawalId: string) =>
+    apiFetch<{ withdrawal: AdminWithdrawal }>(
+      `/withdrawals/admin/${encodeURIComponent(withdrawalId)}`,
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  decide: (
+    withdrawalId: string,
+    payload: AdminWithdrawalDecisionPayload,
+  ) =>
+    apiFetch<{ withdrawal: AdminWithdrawal }>(
+      `/withdrawals/admin/${encodeURIComponent(withdrawalId)}/decision`,
+      { method: "POST", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  bankAccounts: () =>
+    apiFetch<AdminBankAccountListResult>(
+      "/withdrawals/admin/bank-accounts",
+      {},
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  verifyBankAccount: (
+    accountId: string,
+    payload: { status: "verified" | "rejected"; reason?: string },
+  ) =>
+    apiFetch<{ account: AdminBankAccount }>(
+      `/withdrawals/admin/bank-accounts/${encodeURIComponent(accountId)}/verify`,
+      { method: "POST", body: JSON.stringify(payload) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+};
 
 /**
  * Public marketplace data. `auth: false` keeps catalogue browsing anonymous

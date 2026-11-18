@@ -4,7 +4,7 @@ import { Icon } from "@/components/icons";
 import Button from "@/components/ui/Button";
 import PageHeader from "@/components/ui/PageHeader";
 import { marketplaceConfig } from "@/config/marketplace";
-import { authRegisterUrl } from "@/lib/urls";
+import { vendorRegisterUrl } from "@/lib/urls";
 
 const faqs = [
   {
@@ -150,7 +150,7 @@ export default function HelpPage() {
               Apply as a vendor and complete store verification.
             </p>
             <a
-              href={authRegisterUrl("vendor")}
+              href={vendorRegisterUrl()}
               className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-pri hover:underline"
             >
               Become a vendor

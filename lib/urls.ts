@@ -51,6 +51,15 @@ export function authRegisterUrl(role?: "user" | "vendor", next?: string | null) 
   return query ? `${AUTH_ROUTES.register}?${query}` : AUTH_ROUTES.register;
 }
 
+/**
+ * Vendor sign-up only happens on the vendor host, where the new vendor's
+ * session is created. The marketplace sends people there instead of creating a
+ * vendor session on the wrong subdomain.
+ */
+export function vendorRegisterUrl(next?: string | null) {
+  return `${APP_URLS.vendor}${authRegisterUrl("vendor", next)}`;
+}
+
 /** Where an account for `role` has to sign in. */
 export function loginForRole(role: string) {
   if (role === "vendor") return `${APP_URLS.vendor}${AUTH_ROUTES.login}`;

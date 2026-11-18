@@ -25,24 +25,21 @@ import {
   type AuthScope,
 } from "@/lib/urls";
 import { useHydrated } from "@/lib/useHydrated";
-import { cn } from "@/lib/cn";
 
 interface RegisterFormProps {
-  /** Which app host is rendering the form. The vendor host is vendor-only. */
+  /**
+   * Which app host is rendering the form. Each host only creates the role it
+   * serves: shoppers on the marketplace, vendors on the vendor host.
+   */
   scope?: AuthScope;
-  initialRole?: "user" | "vendor";
 }
 
 export default function RegisterForm({
   scope = "marketplace",
-  initialRole,
 }: RegisterFormProps) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const lockedRole = scope === "vendor" ? "vendor" : null;
-  const [role, setRole] = useState<"user" | "vendor">(
-    lockedRole ?? initialRole ?? "user",
-  );
+  const role = scope === "vendor" ? "vendor" : "user";
   const [error, setError] = useState<string | null>(null);
   const nextPath = hydrated ? readNextPath() : null;
 
@@ -110,9 +107,7 @@ export default function RegisterForm({
     <>
       <AuthIntro
         eyebrow="Get started"
-        title={
-          role === "vendor" ? "Open your storefront" : "Create your account"
-        }
+        title={role === "vendor" ? "Open your storefront" : "Create your account"}
         description={
           role === "vendor"
             ? "Create a vendor account, then complete your store and KYB details for review."
@@ -125,31 +120,6 @@ export default function RegisterForm({
           {error}
         </Alert>
       ) : null}
-
-      {lockedRole ? null : (
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-soft p-1">
-          {(
-            [
-              { value: "user" as const, label: "I'm shopping" },
-              { value: "vendor" as const, label: "I'm selling" },
-            ]
-          ).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setRole(option.value)}
-              className={cn(
-                "rounded-lg px-3 py-2 text-[12px] font-semibold transition",
-                role === option.value
-                  ? "bg-white text-pri shadow-sm"
-                  : "text-muted hover:text-ink",
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <TextField
@@ -165,7 +135,11 @@ export default function RegisterForm({
           label="Username"
           autoComplete="username"
           placeholder="adaobi"
-          hint="This is how other shoppers will see you."
+          hint={
+            role === "vendor"
+              ? "This is how customers will see your store."
+              : "This is how other shoppers will see you."
+          }
           error={errors.username?.message}
           register={register("username")}
         />

@@ -31,6 +31,8 @@ export type AdminPermission =
   | "transactions.view"
   | "escrow.view"
   | "financials.view"
+  | "withdrawals.view"
+  | "withdrawals.manage"
   | "shipments.view"
   | "shipments.manage"
   | "disputes.view"
@@ -372,7 +374,8 @@ export type UploadPurpose =
   | "store_document"
   | "store_logo"
   | "store_cover"
-  | "profile_picture";
+  | "profile_picture"
+  | "product_image";
 
 export interface UploadedFile {
   url: string;
@@ -956,7 +959,15 @@ export type NotificationType =
   | "product_approved"
   | "product_rejected"
   | "product_suspended"
-  | "product_restored";
+  | "product_restored"
+  | "order_created"
+  | "order_status_updated"
+  | "withdrawal_submitted"
+  | "withdrawal_approved"
+  | "withdrawal_rejected"
+  | "withdrawal_paid"
+  | "bank_account_verified"
+  | "bank_account_rejected";
 
 export interface ApiNotification {
   _id: string;
@@ -2080,6 +2091,401 @@ export interface CheckoutPayment {
   accessCode: string | null;
   status: "pending" | "paid" | "failed";
   message: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vendor portal                                                              */
+/* -------------------------------------------------------------------------- */
+
+export interface VendorStoreAccess {
+  status: StoreStatus;
+  canSell: boolean;
+  canWithdraw: boolean;
+  restriction: string | null;
+}
+
+export interface VendorSettingsSnapshot {
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    username: string | null;
+    phone: string | null;
+    profilePicture: string | null;
+  };
+  store: {
+    id: string;
+    name: string;
+    slug: string;
+    status: StoreStatus;
+    category: string;
+    description: string | null;
+    phoneNumber: string;
+    email: string;
+    logo: string | null;
+    coverImage: string | null;
+    address: StoreAddress | null;
+    pickupInstructions: string | null;
+    operatingHours: OperatingHour[];
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    rejectionReason: string | null;
+    suspensionReason: string | null;
+  };
+  payout: {
+    bankName: string | null;
+    accountName: string | null;
+    accountNumber: string | null;
+    verified: boolean;
+  };
+  access: VendorStoreAccess;
+  editable: {
+    profile: boolean;
+    storefront: boolean;
+    operations: boolean;
+    legalIdentity: boolean;
+    settlementAccount: boolean;
+    reason: string;
+  };
+}
+
+export interface VendorChartSeries {
+  key: string;
+  label: string;
+  description: string;
+  kind: "count" | "currency";
+  total: number;
+  points: DashboardPoint[];
+}
+
+export interface VendorMetric {
+  key: string;
+  label: string;
+  description: string;
+  format: "number" | "currency";
+  basis: "range" | "all_time";
+  value: number;
+  previousValue?: number;
+  changePct?: number | null;
+  href?: string;
+}
+
+export interface VendorPendingAction {
+  key: string;
+  label: string;
+  description: string;
+  count: number;
+  href: string;
+  severity: "high" | "medium" | "low";
+  oldestAt: string | null;
+}
+
+export interface VendorLedgerTotals {
+  grossSales: number;
+  platformFees: number;
+  netEarnings: number;
+  refunds: number;
+  refundedEarnings: number;
+  pendingEarnings: number;
+  settledEarnings: number;
+  withdrawn: number;
+  withdrawalPending: number;
+  availableBalance: number;
+  adjustments: number;
+  successfulPayments: number;
+  refundedPayments: number;
+  heldEscrows: number;
+}
+
+export interface VendorFinanceSummary {
+  totals: VendorLedgerTotals;
+  definitions: Record<string, string>;
+  reconciliation: {
+    equation: string;
+    ledgerAvailable: number;
+    recomputedAvailable: number;
+    matches: boolean;
+  };
+  generatedAt: string;
+}
+
+export interface VendorEarningsWindow {
+  gross: number;
+  fees: number;
+  net: number;
+  paidOrders: number;
+  orders: number;
+  orderValue: number;
+  settled: number;
+  settlements: number;
+}
+
+export interface VendorFinanceAnalytics {
+  range: DashboardRangeDTO;
+  current: VendorEarningsWindow;
+  previous: VendorEarningsWindow;
+  change: {
+    gross: number | null;
+    net: number | null;
+    orders: number | null;
+    orderValue: number | null;
+    settled: number | null;
+  };
+  charts: VendorChartSeries[];
+  summary: VendorFinanceSummary;
+  generatedAt: string;
+}
+
+export type VendorFinanceResult = VendorFinanceSummary & {
+  analytics: VendorFinanceAnalytics;
+};
+
+export interface VendorDashboard {
+  range: DashboardRangeDTO;
+  metrics: VendorMetric[];
+  charts: VendorChartSeries[];
+  pendingActions: VendorPendingAction[];
+  recentOrders: ApiAdminOrder[];
+  finance: VendorFinanceSummary;
+  store: {
+    id: string;
+    name: string;
+    slug: string;
+    status: StoreStatus;
+    category: string;
+    logo: string | null;
+    access: VendorStoreAccess;
+  };
+  generatedAt: string;
+}
+
+export interface VendorProductListResult {
+  products: ApiProduct[];
+  summary: Record<ProductStatus, number>;
+  publicationSummary: Record<ProductPublicationStatus, number>;
+  lowStock: number;
+  pagination: PaginationMeta;
+}
+
+export interface VendorProductDetailResult {
+  product: ApiProduct;
+  reviews: ApiProductReview[];
+}
+
+export interface VendorOrderListResult {
+  orders: ApiAdminOrder[];
+  summary: Record<string, number>;
+  paymentSummary: Record<string, number>;
+  fulfillmentSummary: Record<string, number>;
+  shipmentSummary: Record<string, number>;
+  pagination: PaginationMeta;
+}
+
+export interface VendorOrderDetailResult {
+  order: ApiAdminOrder;
+  masterOrderNumber: string;
+  shipment: ApiShipment | null;
+  payment: ApiPayment | null;
+  escrow: ApiEscrow | null;
+  timeline: ApiOrderTimelineEvent[];
+  fulfillmentStatus: FulfillmentStatus;
+  /** The vendor only ever receives their own fulfilment record. */
+  scope: "vendor_sub_order";
+}
+
+export interface ApiVendorTransaction extends ApiPayment {
+  transactionType: "payment" | "refund";
+  escrow: ApiEscrow | null;
+}
+
+export interface VendorTransactionListResult {
+  transactions: ApiVendorTransaction[];
+  summary: {
+    total: number;
+    statusCounts: Record<string, number>;
+    successfulVolume: number;
+    refundedVolume: number;
+    platformFees: number;
+  };
+  pagination: PaginationMeta;
+}
+
+export type WithdrawalStatus =
+  | "pending"
+  | "approved"
+  | "processing"
+  | "paid"
+  | "rejected"
+  | "cancelled";
+
+export interface VendorBankAccount {
+  _id: string;
+  vendor: string;
+  store: string;
+  bankName: string;
+  bankCode: string;
+  accountName: string;
+  accountNumber: string;
+  isDefault: boolean;
+  verificationStatus: "pending" | "verified" | "rejected";
+  source: "store_settlement" | "vendor";
+  verifiedAt: string | null;
+  rejectionReason: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface VendorBankAccountListResult {
+  accounts: VendorBankAccount[];
+  defaultAccountId: string | null;
+  hasVerifiedAccount: boolean;
+}
+
+export interface VendorWithdrawalHistoryEntry {
+  _id: string;
+  action:
+    | "requested"
+    | "approved"
+    | "processing"
+    | "paid"
+    | "rejected"
+    | "cancelled";
+  fromStatus: WithdrawalStatus | null;
+  toStatus: WithdrawalStatus;
+  actorRole: "vendor" | "admin" | "system";
+  reason: string | null;
+  occurredAt: string;
+}
+
+export interface VendorWithdrawal {
+  _id: string;
+  reference: string;
+  vendor: string;
+  store: string;
+  amount: number;
+  currency: string;
+  status: WithdrawalStatus;
+  bankAccount: string;
+  bankSnapshot: {
+    bankName: string;
+    bankCode: string;
+    accountName: string;
+    accountNumber: string;
+  };
+  balanceBefore: number;
+  balanceAfter: number;
+  requestedAt: string;
+  reviewedAt: string | null;
+  approvedAt: string | null;
+  processingAt: string | null;
+  paidAt: string | null;
+  rejectedAt: string | null;
+  cancelledAt: string | null;
+  rejectionReason: string | null;
+  payoutReference: string | null;
+  adminNote: string | null;
+  history: VendorWithdrawalHistoryEntry[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface VendorWithdrawalSummary {
+  total: number;
+  byStatus: Record<WithdrawalStatus, number>;
+  amounts: Record<WithdrawalStatus, number>;
+  reserved: number;
+  paid: number;
+}
+
+export interface VendorWithdrawalBalance {
+  availableBalance: number;
+  settledEarnings: number;
+  reserved: number;
+  withdrawn: number;
+}
+
+export interface VendorWithdrawalListResult {
+  withdrawals: VendorWithdrawal[];
+  summary: VendorWithdrawalSummary;
+  balance: VendorWithdrawalBalance;
+  pagination: PaginationMeta;
+}
+
+export interface VendorWithdrawalResult {
+  withdrawal: VendorWithdrawal;
+  created?: boolean;
+  balance?: VendorWithdrawalBalance;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admin withdrawals                                                          */
+/* -------------------------------------------------------------------------- */
+
+export interface AdminWithdrawalVendorSummary {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  status?: string;
+  role?: string;
+}
+
+export interface AdminWithdrawalStoreSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  status: StoreStatus;
+  logo?: string | null;
+}
+
+export interface AdminWithdrawalReviewer {
+  _id: string;
+  name: string;
+  email: string;
+  adminRole?: string | null;
+}
+
+/**
+ * Admin withdrawal records keep the vendor/store populated so the review screen
+ * can show who is being paid without extra lookups.
+ */
+export interface AdminWithdrawal
+  extends Omit<VendorWithdrawal, "vendor" | "store" | "bankAccount"> {
+  vendor: AdminWithdrawalVendorSummary | string;
+  store: AdminWithdrawalStoreSummary | string;
+  reviewedBy?: AdminWithdrawalReviewer | string | null;
+  bankAccount?: VendorBankAccount | string | null;
+}
+
+export interface AdminWithdrawalListResult {
+  withdrawals: AdminWithdrawal[];
+  summary: VendorWithdrawalSummary;
+  pagination: PaginationMeta;
+}
+
+export type AdminWithdrawalDecisionAction =
+  | "approve"
+  | "reject"
+  | "processing"
+  | "paid";
+
+export interface AdminWithdrawalDecisionPayload {
+  action: AdminWithdrawalDecisionAction;
+  reason?: string;
+  payoutReference?: string;
+  adminNote?: string;
+}
+
+export interface AdminBankAccount
+  extends Omit<VendorBankAccount, "vendor" | "store"> {
+  vendor: AdminWithdrawalVendorSummary | string;
+  store: AdminWithdrawalStoreSummary | string;
+  verifiedBy?: string | null;
+}
+
+export interface AdminBankAccountListResult {
+  accounts: AdminBankAccount[];
 }
 
 export interface PlaceCheckoutResult {

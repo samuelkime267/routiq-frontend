@@ -8,11 +8,10 @@ import { useHydrated } from "@/lib/useHydrated";
 const SESSION_EVENT = "routiq:session";
 
 /**
- * Reads the signed-in customer from the shared session store.
+ * Reads the signed-in customer from this host's session store.
  *
- * The auth app writes the session on a shared development cookie and a
- * handoff token establishes the first-party token on this host, so the header
- * only needs to react to local storage and same-tab session events.
+ * Each app keeps its own host-only session, so the header only needs to react
+ * to local storage and same-tab session events.
  */
 export function useMarketplaceAccount() {
   const hydrated = useHydrated();

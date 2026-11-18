@@ -21,6 +21,7 @@ import {
   appHomeForRole,
   authLoginUrl,
   authRegisterUrl,
+  vendorRegisterUrl,
 } from "@/lib/urls";
 import { initials } from "@/lib/marketplace";
 
@@ -188,7 +189,7 @@ export default function AccountPage() {
                 customers across the marketplace.
               </p>
               <a
-                href={authRegisterUrl("vendor")}
+                href={vendorRegisterUrl()}
                 className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-lime px-4 text-[12px] font-semibold text-pri-deep transition hover:brightness-95 focus-visible:ring-4 focus-visible:ring-lime/40 focus-visible:outline-none"
               >
                 Become a vendor

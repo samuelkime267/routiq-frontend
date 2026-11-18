@@ -3,7 +3,7 @@ import groceryImg from "@/assets/images/grocery.jpg";
 import { Icon } from "@/components/icons";
 import MarketplaceContainer from "@/components/marketplace/MarketplaceContainer";
 import Button from "@/components/ui/Button";
-import { authRegisterUrl } from "@/lib/urls";
+import { vendorRegisterUrl } from "@/lib/urls";
 
 const values = [
   {
@@ -54,7 +54,7 @@ export default function AboutPage() {
                     Explore the marketplace
                   </Button>
                   <a
-                    href={authRegisterUrl("vendor")}
+                    href={vendorRegisterUrl()}
                     className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-6 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/10 focus-visible:ring-4 focus-visible:ring-lime/30 focus-visible:outline-none sm:w-auto"
                   >
                     Become a vendor

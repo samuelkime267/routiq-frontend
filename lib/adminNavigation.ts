@@ -109,6 +109,14 @@ export const ADMIN_NAVIGATION: AdminNavGroup[] = [
           "Keep GMV, collections, commission, refunds, settlements and escrow separate.",
       },
       {
+        href: "/finance/withdrawals",
+        label: "Withdrawals",
+        icon: "wallet",
+        permissions: ["withdrawals.view"],
+        description:
+          "Review vendor payout requests, confirm transfers and verify payout accounts.",
+      },
+      {
         href: "/reconciliation",
         label: "Reconciliation",
         icon: "check-circle",
