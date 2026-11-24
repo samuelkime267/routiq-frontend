@@ -234,7 +234,7 @@ export default function EscrowDirectory() {
       <PageHeader
         title="Escrow"
         eyebrow="Finance"
-        description="Funds held against orders before release or refund. Escrow is a liability, not realised revenue; this console is read-only because no release or refund client is configured."
+        description="Funds held against orders before release or refund. Escrow is a liability, not realised revenue; release requires the escrow.release permission and is audited."
         breadcrumbs={breadcrumbsFor("/escrow")}
         actions={
           <Button

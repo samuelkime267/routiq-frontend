@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-type Tone = "error" | "success" | "info";
+type Tone = "error" | "success" | "info" | "warning";
 
 interface AlertProps {
   tone?: Tone;
@@ -11,7 +11,10 @@ interface AlertProps {
   className?: string;
 }
 
-const tones: Record<Tone, { wrapper: string; icon: "alert-circle" | "check-circle" | "shield" }> = {
+const tones: Record<
+  Tone,
+  { wrapper: string; icon: "alert-circle" | "check-circle" | "shield" }
+> = {
   error: {
     wrapper: "border-danger/20 bg-danger/5 text-danger",
     icon: "alert-circle",
@@ -23,6 +26,10 @@ const tones: Record<Tone, { wrapper: string; icon: "alert-circle" | "check-circl
   info: {
     wrapper: "border-pri/15 bg-well text-pri",
     icon: "shield",
+  },
+  warning: {
+    wrapper: "border-accent/40 bg-accent/10 text-ink",
+    icon: "alert-circle",
   },
 };
 

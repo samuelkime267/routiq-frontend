@@ -1,14 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
+import Alert from "@/components/ui/Alert";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import ErrorState from "@/components/ui/ErrorState";
+import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Timeline, { type TimelineItem } from "@/components/ui/Timeline";
+import { useToast } from "@/components/ui/Toast";
+import { useAdminSession } from "@/components/admin/AdminSession";
 import { useResource } from "@/hooks/useResource";
 import { orderAdminApi } from "@/lib/api";
 import { formatAdminDate } from "@/lib/admin";
@@ -56,10 +60,58 @@ const CHANNEL_LABELS: Record<ApiPayment["channel"], string> = {
 };
 
 export default function OrderDetail({ orderId }: OrderDetailProps) {
+  const { permissions } = useAdminSession();
+  const { toast } = useToast();
   const { data, error, loading, refreshing, reload } =
     useResource<AdminOrderDetailData>(`admin-order-${orderId}`, () =>
       orderAdminApi.get(orderId),
     );
+
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+
+  const submitRefund = async () => {
+    setRefundError(null);
+
+    if (refundReason.trim().length < 5) {
+      setRefundError("Add a short reason (at least 5 characters).");
+      return;
+    }
+
+    setRefunding(true);
+
+    try {
+      const result = await orderAdminApi.refund(orderId, {
+        reason: refundReason.trim(),
+      });
+
+      toast({
+        tone: result.state === "failed" ? "error" : "success",
+        title:
+          result.state === "processed" || result.state === "already_refunded"
+            ? "Refund completed"
+            : "Refund submitted",
+        description:
+          result.state === "pending"
+            ? "Paystack accepted the refund request. The order updates when the provider confirms it."
+            : `Refund of ₦${result.amount.toLocaleString("en-NG")} recorded.`,
+      });
+
+      setRefundOpen(false);
+      setRefundReason("");
+      void reload();
+    } catch (refundFailure) {
+      setRefundError(
+        refundFailure instanceof Error
+          ? refundFailure.message
+          : "The refund could not be requested.",
+      );
+    } finally {
+      setRefunding(false);
+    }
+  };
 
   if (loading && !data) {
     return (
@@ -110,6 +162,10 @@ export default function OrderDetail({ orderId }: OrderDetailProps) {
   const failedShipment = shipments.find(
     (shipment) => shipment.status === "failed",
   );
+  const canRefund =
+    permissions.includes("refunds.manage") && order.paymentStatus === "paid";
+  const refundPending = latestPayment?.refundStatus === "pending";
+  const refundFailed = latestPayment?.refundStatus === "failed";
 
   const timelineItems: TimelineItem[] = [...timeline].reverse().map((event) => {
     const presentation = timelineEventPresentation(event);
@@ -136,6 +192,17 @@ export default function OrderDetail({ orderId }: OrderDetailProps) {
             <Button variant="outline" size="sm" href="/orders">
               Back to orders
             </Button>
+            {canRefund ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setRefundOpen(true);
+                  setRefundError(null);
+                }}
+              >
+                Refund order
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -170,6 +237,20 @@ export default function OrderDetail({ orderId }: OrderDetailProps) {
           </div>
         }
       />
+
+      {refundPending ? (
+        <Alert tone="info" title="Refund in progress">
+          Paystack has accepted the refund request. The order and escrow update
+          once the provider confirms the money moved.
+        </Alert>
+      ) : null}
+
+      {refundFailed ? (
+        <Alert tone="error" title="Refund failed">
+          {latestPayment?.refundFailureReason ??
+            "The payment provider rejected the refund. Nothing was returned to the customer."}
+        </Alert>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
@@ -472,6 +553,58 @@ export default function OrderDetail({ orderId }: OrderDetailProps) {
           </section>
         </aside>
       </div>
+
+      <Modal
+        open={refundOpen}
+        onClose={() => setRefundOpen(false)}
+        title="Refund this order"
+        description="The customer receives the full payment through Paystack. The order's escrow stops being payable and the vendor is notified."
+        dismissible={!refunding}
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRefundOpen(false)}
+              disabled={refunding}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => void submitRefund()}
+              loading={refunding}
+            >
+              Refund {formatNaira(latestPayment?.amount ?? order.total)}
+            </Button>
+          </div>
+        }
+      >
+        {refundError ? (
+          <Alert tone="error" className="mb-3">
+            {refundError}
+          </Alert>
+        ) : null}
+
+        <label
+          htmlFor="order-refund-reason"
+          className="block text-[12px] font-semibold text-ink"
+        >
+          Reason
+        </label>
+        <textarea
+          id="order-refund-reason"
+          rows={3}
+          value={refundReason}
+          onChange={(event) => setRefundReason(event.target.value)}
+          placeholder="Why is this order being refunded?"
+          className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+        <p className="mt-1 text-[11px] text-muted">
+          The reason is stored on the payment record and the audit trail.
+        </p>
+      </Modal>
     </div>
   );
 }

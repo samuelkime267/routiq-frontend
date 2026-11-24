@@ -10,6 +10,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ErrorState from "@/components/ui/ErrorState";
+import FileUpload from "@/components/ui/FileUpload";
 import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/ui/PageHeader";
 import Skeleton from "@/components/ui/Skeleton";
@@ -47,6 +48,7 @@ import {
 import type {
   ApiAdminOrder,
   VendorOrderDetailResult,
+  VendorOrderDispute,
 } from "@/types/api";
 
 type OrderAction = "confirm" | "processing" | "ship" | "deliver";
@@ -74,6 +76,7 @@ export default function VendorOrderDetail({
   const [shipOpen, setShipOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deliverOpen, setDeliverOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<OrderAction | null>(null);
 
   if (loading && !data) {
@@ -115,8 +118,15 @@ export default function VendorOrderDetail({
     );
   }
 
-  const { order, shipment, payment, escrow, timeline, fulfillmentStatus } =
-    data;
+  const {
+    order,
+    shipment,
+    payment,
+    escrow,
+    dispute,
+    timeline,
+    fulfillmentStatus,
+  } = data;
   const customer = orderCustomer(order);
 
   async function runAction(action: Exclude<OrderAction, "ship">) {
@@ -172,11 +182,11 @@ export default function VendorOrderDetail({
   const canProcess = order.status === "confirmed";
   const canShip = order.status === "processing";
   const canDeliver = order.status === "shipped";
-  const canCancel =
-    order.status !== "cancelled" &&
-    order.status !== "refunded" &&
-    order.status !== "delivered" &&
-    order.paymentStatus !== "paid";
+  // The buyer owns cancellation until this vendor accepts the order, so
+  // rejecting is only possible while it is still pending. A paid order that is
+  // rejected is refunded automatically by the API.
+  const canCancel = order.status === "pending";
+  const cancelRefunds = order.paymentStatus === "paid";
 
   const shipDialogOpen = shipOpen || (requestedAction === "ship" && canShip);
   const deliverDialogOpen =
@@ -279,7 +289,8 @@ export default function VendorOrderDetail({
       {order.status === "pending" && order.paymentStatus === "paid" ? (
         <Alert tone="info" title="This paid order needs your confirmation">
           Confirm it so the customer knows you have accepted the order, then move
-          it to processing when you start preparing it.
+          it to processing when you start preparing it. If you cannot fulfil it,
+          reject it and the customer is refunded automatically.
         </Alert>
       ) : null}
 
@@ -287,6 +298,17 @@ export default function VendorOrderDetail({
         <Alert tone="info" title="Record shipment when it leaves your store">
           Add the courier and tracking details so the customer and Routiq can
           follow the delivery.
+        </Alert>
+      ) : null}
+
+      {dispute?.isOpen ? (
+        <Alert
+          tone="warning"
+          title={`Dispute ${dispute.reference} is open`}
+        >
+          {dispute.subject}. Earnings for this order stay on hold until Routiq
+          resolves the case. Upload the waybill or delivery proof so support can
+          review it.
         </Alert>
       ) : null}
 
@@ -608,7 +630,7 @@ export default function VendorOrderDetail({
                   variant="outline"
                   onClick={() => setCancelOpen(true)}
                 >
-                  Cancel order
+                  {cancelRefunds ? "Reject order" : "Cancel order"}
                 </Button>
               ) : null}
 
@@ -644,13 +666,80 @@ export default function VendorOrderDetail({
             </div>
           </section>
 
+          {dispute ? (
+            <section className="rounded-2xl border border-line bg-white p-5">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-[13px] font-semibold tracking-tight text-ink">
+                  Dispute
+                </h2>
+                <Badge tone={dispute.isOpen ? "amber" : "green"}>
+                  {dispute.isOpen ? "Open" : "Resolved"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-[10px] font-semibold tracking-[0.12em] text-muted uppercase">
+                {dispute.reference}
+              </p>
+              <p className="mt-1.5 text-[12px] font-medium text-ink">
+                {dispute.subject}
+              </p>
+              {dispute.isOpen ? (
+                <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                  The customer&apos;s money stays in escrow until support
+                  resolves this case.
+                </p>
+              ) : null}
+
+              <p className="mt-3 text-[10px] font-semibold tracking-[0.12em] text-muted uppercase">
+                Evidence
+              </p>
+              {dispute.evidence.length > 0 ? (
+                <ul className="mt-1.5 space-y-1.5">
+                  {dispute.evidence.map((item) => (
+                    <li key={item._id} className="text-[11px]">
+                      {item.url ? (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-pri hover:underline"
+                        >
+                          <Icon name="file-text" className="size-3" />
+                          {item.label}
+                        </a>
+                      ) : (
+                        <span className="text-ink">{item.label}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-[11px] text-muted">
+                  No evidence uploaded yet.
+                </p>
+              )}
+
+              {dispute.isOpen ? (
+                <Button
+                  fullWidth
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => setEvidenceOpen(true)}
+                >
+                  Upload evidence
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="rounded-2xl border border-pri/15 bg-well/60 p-5">
             <h2 className="text-[13px] font-semibold tracking-tight text-pri">
               Need help?
             </h2>
             <p className="mt-1 text-[11px] leading-relaxed text-muted">
-              Refunds, disputes and paid-order cancellations are handled by
-              Routiq support so money movement stays auditable.
+              Disputes and refunds after delivery are handled by Routiq support
+              so money movement stays auditable. Rejecting a paid order before
+              you accept it refunds the customer automatically.
             </p>
             <Link
               href="/settings"
@@ -677,9 +766,21 @@ export default function VendorOrderDetail({
       {cancelOpen ? (
         <CancelOrderDialog
           order={order}
+          refunds={cancelRefunds}
           onClose={() => setCancelOpen(false)}
           onSaved={() => {
             setCancelOpen(false);
+            reload();
+          }}
+        />
+      ) : null}
+
+      {evidenceOpen && dispute ? (
+        <EvidenceDialog
+          dispute={dispute}
+          onClose={() => setEvidenceOpen(false)}
+          onSaved={() => {
+            setEvidenceOpen(false);
             reload();
           }}
         />
@@ -864,10 +965,12 @@ function ShipmentDialog({
 
 function CancelOrderDialog({
   order,
+  refunds,
   onClose,
   onSaved,
 }: {
   order: ApiAdminOrder;
+  refunds: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -890,7 +993,13 @@ function CancelOrderDialog({
         status: "cancelled",
         reason: values.reason.trim(),
       });
-      toast({ title: "Order cancelled", tone: "success" });
+      toast({
+        title: refunds ? "Order rejected" : "Order cancelled",
+        description: refunds
+          ? "The customer's payment is being refunded automatically."
+          : undefined,
+        tone: "success",
+      });
       onSaved();
     } catch (error) {
       setFormError(
@@ -905,8 +1014,12 @@ function CancelOrderDialog({
     <Modal
       open
       onClose={onClose}
-      title="Cancel this order"
-      description="Only unpaid orders that have not shipped can be cancelled here. Paid orders need a support request so the refund is handled safely."
+      title={refunds ? "Reject this order" : "Cancel this order"}
+      description={
+        refunds
+          ? "The customer has paid, but you can still reject the order before accepting it. Their payment is refunded in full automatically."
+          : "The order has not been paid. Cancelling it tells the customer you cannot fulfil it."
+      }
       size="sm"
       dismissible={!isSubmitting}
       footer={
@@ -926,7 +1039,7 @@ function CancelOrderDialog({
             variant="danger"
             loading={isSubmitting}
           >
-            Cancel order
+            {refunds ? "Reject and refund" : "Cancel order"}
           </Button>
         </>
       }
@@ -935,7 +1048,11 @@ function CancelOrderDialog({
         <TextareaField
           label="Reason"
           rows={3}
-          placeholder="Why are you cancelling this order?"
+          placeholder={
+            refunds
+              ? "Why can't you fulfil this order?"
+              : "Why are you cancelling this order?"
+          }
           register={register("reason")}
           error={errors.reason?.message}
         />
@@ -945,6 +1062,134 @@ function CancelOrderDialog({
           </p>
         ) : null}
       </form>
+    </Modal>
+  );
+}
+
+function EvidenceDialog({
+  dispute,
+  onClose,
+  onSaved,
+}: {
+  dispute: VendorOrderDispute;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [label, setLabel] = useState("");
+  const [note, setNote] = useState("");
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setError(null);
+
+    if (label.trim().length < 3) {
+      setError("Give the evidence a short label.");
+      return;
+    }
+
+    if (!url) {
+      setError("Upload the waybill or proof first.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await vendorPortalApi.addDisputeEvidence(dispute._id, {
+        label: label.trim(),
+        url,
+        note: note.trim() || undefined,
+      });
+      toast({
+        title: "Evidence added",
+        description: "Routiq support can now review this file.",
+        tone: "success",
+      });
+      onSaved();
+    } catch (submitError) {
+      setError(
+        submitError instanceof ApiError
+          ? submitError.message
+          : "The evidence could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Upload dispute evidence"
+      description={`Attach the waybill or delivery proof for ${dispute.reference}. Support uses it to decide where the held money goes.`}
+      size="sm"
+      dismissible={!saving}
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} loading={saving}>
+            Add evidence
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <FileUpload
+          id="dispute-evidence-file"
+          label="Waybill or proof"
+          description="Photo or PDF of the waybill, receipt or delivery confirmation."
+          purpose="dispute_evidence"
+          value={url}
+          onUploaded={(file) => {
+            setUrl(file.url);
+            if (!label.trim()) setLabel(file.originalName);
+          }}
+        />
+
+        <label
+          htmlFor="dispute-evidence-label"
+          className="block text-[12px] font-semibold text-ink"
+        >
+          Label
+        </label>
+        <input
+          id="dispute-evidence-label"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          maxLength={160}
+          placeholder="e.g. GIG waybill 00231"
+          className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+
+        <label
+          htmlFor="dispute-evidence-note"
+          className="block text-[12px] font-semibold text-ink"
+        >
+          Note
+          <span className="ml-1 font-normal text-muted">(optional)</span>
+        </label>
+        <textarea
+          id="dispute-evidence-note"
+          rows={2}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={1000}
+          placeholder="Anything support should know about this file."
+          className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+
+        {error ? (
+          <p role="alert" className="text-[12px] text-danger">
+            {error}
+          </p>
+        ) : null}
+      </div>
     </Modal>
   );
 }

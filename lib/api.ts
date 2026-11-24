@@ -14,6 +14,7 @@ import type {
   AddressPayload,
   AdminOrderDetail,
   AdminOrderListResult,
+  AdminOrderRefundResult,
   AdminOrderShipmentsResult,
   AdminOrderSubOrdersResult,
   AdminOrderTimelineResult,
@@ -78,6 +79,8 @@ import type {
   MarketplaceAddressListResult,
   MarketplaceOrderDetailResult,
   MarketplaceOrderGroupListResult,
+  CustomerDisputeType,
+  MarketplaceDisputeSummary,
   MarketplaceProductDetailResult,
   MarketplaceProductListResult,
   MarketplaceProductQuery,
@@ -1013,6 +1016,24 @@ export const orderAdminApi = {
       {},
       { refreshPath: ADMIN_REFRESH_PATH },
     ),
+
+  /**
+   * Requests a full refund through Paystack. The refund is confirmed by the
+   * provider webhook or by `syncRefund`, never by the UI alone.
+   */
+  refund: (orderId: string, input: { reason: string }) =>
+    apiFetch<AdminOrderRefundResult>(
+      `/orders/${encodeURIComponent(orderId)}/admin/refund`,
+      { method: "POST", body: JSON.stringify(input) },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
+
+  syncRefund: (orderId: string) =>
+    apiFetch<AdminOrderRefundResult>(
+      `/orders/${encodeURIComponent(orderId)}/admin/refund/sync`,
+      { method: "POST" },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
 };
 
 export const shipmentAdminApi = {
@@ -1316,6 +1337,19 @@ export const vendorPortalApi = {
   ) =>
     apiFetch<{ order: unknown; shipment: unknown }>(
       `/orders/vendor/${encodeURIComponent(orderId)}/shipment`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
+  /**
+   * Links an uploaded file (waybill photo/PDF) to an open dispute. Upload the
+   * file first with `uploadApi.file(file, "dispute_evidence")`.
+   */
+  addDisputeEvidence: (
+    disputeId: string,
+    payload: { label: string; url: string; note?: string },
+  ) =>
+    apiFetch<{ dispute: unknown }>(
+      `/disputes/vendor/${encodeURIComponent(disputeId)}/evidence`,
       { method: "POST", body: JSON.stringify(payload) },
     ),
 
@@ -1679,6 +1713,62 @@ export const customerOrderApi = {
     apiFetch<MarketplaceOrderDetailResult>(
       `/orders/customer/${encodeURIComponent(reference)}`,
     ),
+
+  /**
+   * Customer acknowledgement that the parcel arrived. Releases the vendor's
+   * escrow immediately instead of waiting out the inspection window.
+   */
+  confirmReceipt: (orderId: string) =>
+    apiFetch<{
+      orderId: string;
+      status: string;
+      deliveredAt: string | null;
+      released: boolean;
+      releaseBlockedBy: string | null;
+    }>(
+      `/orders/customer/${encodeURIComponent(orderId)}/confirm-receipt`,
+      { method: "POST" },
+    ),
+
+  /**
+   * Cancels a paid order before the vendor accepts it. The API refunds the
+   * payment automatically; the returned `refund.state` says whether the money
+   * already moved or is still pending with Paystack.
+   */
+  cancel: (orderId: string, input: { reason?: string } = {}) =>
+    apiFetch<{
+      orderId: string;
+      status: string;
+      paymentStatus: string;
+      cancelledAt: string | null;
+      alreadyCancelled: boolean;
+      refund: {
+        state: string;
+        refundStatus: string;
+        amount: number;
+      } | null;
+    }>(`/orders/customer/${encodeURIComponent(orderId)}/cancel`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /**
+   * Opens a dispute for a shipped order, or a delivered one inside the 48-hour
+   * window. An open dispute freezes the vendor's escrow until support resolves it.
+   */
+  createDispute: (
+    orderId: string,
+    input: { type: CustomerDisputeType; subject: string; description: string },
+  ) =>
+    apiFetch<{
+      dispute: MarketplaceDisputeSummary & { isOpen: boolean };
+      orderId: string;
+      orderNumber: string;
+      windowEndsAt: string | null;
+    }>(`/disputes/customer/${encodeURIComponent(orderId)}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };
 
 export const uploadApi = {
@@ -1836,6 +1926,29 @@ export const escrowAdminApi = {
       {},
       { refreshPath: ADMIN_REFRESH_PATH },
     ),
+
+  /**
+   * Administrative release. `reason` is required by the API and is written to
+   * the audit trail. An unresolved dispute always blocks the release.
+   */
+  release: (
+    escrowId: string,
+    input: { reason: string; force?: boolean },
+  ) =>
+    apiFetch<{
+      _id: string;
+      status: string;
+      amountHeld: number;
+      amountReleased: number;
+      releasedAt: string | null;
+    }>(
+      `/escrow/${encodeURIComponent(escrowId)}/admin/release`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+      { refreshPath: ADMIN_REFRESH_PATH },
+    ),
 };
 
 /* -------------------------------------------------------------------------- */
@@ -1954,7 +2067,11 @@ export const disputeAdminApi = {
 
   resolve: (
     disputeId: string,
-    payload: { resolution: string; note?: string },
+    payload: {
+      outcome: "release" | "refund";
+      resolution: string;
+      note?: string;
+    },
   ) =>
     apiFetch<{ dispute: unknown }>(
       `/disputes/${encodeURIComponent(disputeId)}/admin/resolve`,

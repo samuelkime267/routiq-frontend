@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Icon } from "@/components/icons";
 import Alert from "@/components/ui/Alert";
 import Badge from "@/components/ui/Badge";
@@ -9,6 +10,8 @@ import ErrorState from "@/components/ui/ErrorState";
 import MetricCard from "@/components/ui/MetricCard";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useToast } from "@/components/ui/Toast";
+import { useAdminSession } from "@/components/admin/AdminSession";
 import { useResource } from "@/hooks/useResource";
 import { escrowAdminApi } from "@/lib/api";
 import { formatAdminDate } from "@/lib/admin";
@@ -32,10 +35,58 @@ const releaseTone = {
 } as const;
 
 export default function EscrowDetail({ escrowId }: { escrowId: string }) {
+  const { permissions } = useAdminSession();
+  const { toast } = useToast();
   const { data, loading, refreshing, error, reload } =
     useResource<AdminEscrowDetail>(escrowId, () =>
       escrowAdminApi.get(escrowId),
     );
+
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [force, setForce] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
+  const canRelease = permissions.includes("escrow.release");
+
+  const submitRelease = async () => {
+    setReleaseError(null);
+
+    if (reason.trim().length < 5) {
+      setReleaseError("Add a short reason (at least 5 characters).");
+      return;
+    }
+
+    setReleasing(true);
+
+    try {
+      await escrowAdminApi.release(escrowId, {
+        reason: reason.trim(),
+        force,
+      });
+
+      toast({
+        tone: "success",
+        title: "Escrow released",
+        description:
+          "The vendor's available balance now includes this amount.",
+      });
+
+      setReleaseOpen(false);
+      setReason("");
+      setForce(false);
+      void reload();
+    } catch (releaseFailure) {
+      setReleaseError(
+        releaseFailure instanceof Error
+          ? releaseFailure.message
+          : "The escrow could not be released.",
+      );
+    } finally {
+      setReleasing(false);
+    }
+  };
 
   if (loading) return <PageSkeleton label="Loading escrow record" />;
 
@@ -69,7 +120,7 @@ export default function EscrowDetail({ escrowId }: { escrowId: string }) {
       <PageHeader
         title={orderReference(order ?? escrow.order)}
         eyebrow="Escrow record"
-        description="Read-only monitoring record. Funds are moved only by the existing payment and escrow settlement rules."
+        description="Funds move when the inspection window closes, when the customer confirms receipt, or through an audited admin release."
         breadcrumbs={[
           ...breadcrumbsFor("/escrow"),
           { label: orderReference(order ?? escrow.order) },
@@ -79,6 +130,17 @@ export default function EscrowDetail({ escrowId }: { escrowId: string }) {
             <Button variant="outline" size="sm" href="/escrow">
               Back to escrow
             </Button>
+            {canRelease && escrow.status === "held" ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setReleaseOpen((current) => !current);
+                  setReleaseError(null);
+                }}
+              >
+                Release funds
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -133,6 +195,67 @@ export default function EscrowDetail({ escrowId }: { escrowId: string }) {
           icon="refresh"
         />
       </div>
+
+      {releaseOpen ? (
+        <section className="rounded-[20px] border border-line bg-white p-4 sm:p-5">
+          <h2 className="text-[13px] font-semibold text-ink">
+            Release to vendor
+          </h2>
+          <p className="mt-1 text-[11px] text-muted">
+            The amount becomes withdrawable immediately. An unresolved dispute
+            always blocks a release.
+          </p>
+
+          {releaseError ? (
+            <Alert tone="error" className="mt-3">
+              {releaseError}
+            </Alert>
+          ) : null}
+
+          <label
+            htmlFor="escrow-release-reason"
+            className="mt-4 block text-[12px] font-semibold text-ink"
+          >
+            Reason
+          </label>
+          <textarea
+            id="escrow-release-reason"
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Why is this escrow being released?"
+            className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+          />
+
+          <label className="mt-3 flex items-center gap-2 text-[11.5px] text-ink">
+            <input
+              type="checkbox"
+              checked={force}
+              onChange={(event) => setForce(event.target.checked)}
+              className="size-4 rounded border-line"
+            />
+            Release before the inspection window closes
+          </label>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => void submitRelease()}
+              loading={releasing}
+            >
+              Confirm release
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setReleaseOpen(false)}
+              disabled={releasing}
+            >
+              Cancel
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <DetailGrid>
         <div className="space-y-4">

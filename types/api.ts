@@ -28,8 +28,10 @@ export type AdminPermission =
   | "products.moderate"
   | "orders.view"
   | "orders.manage"
+  | "refunds.manage"
   | "transactions.view"
   | "escrow.view"
+  | "escrow.release"
   | "financials.view"
   | "withdrawals.view"
   | "withdrawals.manage"
@@ -375,7 +377,8 @@ export type UploadPurpose =
   | "store_logo"
   | "store_cover"
   | "profile_picture"
-  | "product_image";
+  | "product_image"
+  | "dispute_evidence";
 
 export interface UploadedFile {
   url: string;
@@ -906,6 +909,11 @@ export interface ApiTransaction {
   currency: string;
   status: "pending" | "successful" | "failed" | "refunded";
   channel: "card" | "bank_transfer" | "ussd" | "wallet";
+  refundStatus?: "none" | "pending" | "processed" | "failed";
+  refundAmount?: number;
+  refundReason?: string | null;
+  refundedAt?: string | null;
+  refundFailureReason?: string | null;
   paidAt?: string | null;
   createdAt: string;
 }
@@ -1024,6 +1032,7 @@ export type OrderTimelineEventType =
   | "created"
   | "payment_confirmed"
   | "vendor_notified"
+  | "confirmed"
   | "processing"
   | "shipment_created"
   | "picked_up"
@@ -1129,6 +1138,11 @@ export interface ApiPayment {
   currency: string;
   status: "pending" | "successful" | "failed" | "refunded";
   channel: "card" | "bank_transfer" | "ussd" | "wallet";
+  refundStatus?: "none" | "pending" | "processed" | "failed";
+  refundAmount?: number;
+  refundReason?: string | null;
+  refundedAt?: string | null;
+  refundFailureReason?: string | null;
   paidAt?: string | null;
   failedReason?: string | null;
   createdAt: string;
@@ -1247,6 +1261,13 @@ export interface AdminOrderDetail {
 export interface AdminOrderTimelineResult {
   events: ApiOrderTimelineEvent[];
   pagination: PaginationMeta;
+}
+
+export interface AdminOrderRefundResult {
+  orderId: string;
+  state: "requested" | "pending" | "processed" | "failed" | "already_refunded";
+  refundStatus: "none" | "pending" | "processed" | "failed";
+  amount: number;
 }
 
 export interface AdminOrderSubOrdersResult {
@@ -1660,6 +1681,9 @@ export interface ApiDispute {
   subject: string;
   description?: string | null;
   resolution?: string | null;
+  resolutionOutcome?: "release" | "refund" | null;
+  outcomeReference?: string | null;
+  outcomeError?: string | null;
   resolvedAt?: string | null;
   closedAt?: string | null;
   assignedTo?: ApiUser | string | null;
@@ -1699,7 +1723,10 @@ export interface AdminDisputeDetail {
   evidence: ApiDisputeEvidence[];
   financials: {
     orderTotal: number | null;
+    outcome: "release" | "refund" | null;
     escrowModified: boolean;
+    refundIssued: boolean;
+    outcomeError: string | null;
     note: string;
   };
 }
@@ -2281,12 +2308,36 @@ export interface VendorOrderListResult {
   pagination: PaginationMeta;
 }
 
+export interface VendorDisputeEvidence {
+  _id: string;
+  label: string;
+  url: string | null;
+  note: string | null;
+  createdAt: string | null;
+}
+
+export interface VendorOrderDispute {
+  _id: string;
+  reference: string;
+  status: DisputeStatus | null;
+  type: string;
+  category: DisputeCategory;
+  priority: DisputePriority;
+  subject: string;
+  description: string | null;
+  createdAt: string | null;
+  resolvedAt: string | null;
+  isOpen: boolean;
+  evidence: VendorDisputeEvidence[];
+}
+
 export interface VendorOrderDetailResult {
   order: ApiAdminOrder;
   masterOrderNumber: string;
   shipment: ApiShipment | null;
   payment: ApiPayment | null;
   escrow: ApiEscrow | null;
+  dispute: VendorOrderDispute | null;
   timeline: ApiOrderTimelineEvent[];
   fulfillmentStatus: FulfillmentStatus;
   /** The vendor only ever receives their own fulfilment record. */
@@ -2619,6 +2670,24 @@ export interface MarketplaceOrderGroupListResult {
   pagination: PaginationMeta;
 }
 
+export interface MarketplaceDisputeSummary {
+  _id: string;
+  reference: string;
+  type: string;
+  category: string;
+  status: "OPEN" | "UNDER_REVIEW" | "AWAITING_INFORMATION" | "RESOLVED" | "CLOSED";
+  subject: string;
+  createdAt: string | null;
+  resolvedAt: string | null;
+}
+
+export type CustomerDisputeType =
+  | "non_delivery"
+  | "damaged_item"
+  | "wrong_item"
+  | "refund"
+  | "other";
+
 export interface MarketplaceOrderDetail {
   masterOrderNumber: string;
   orders: Array<{
@@ -2650,6 +2719,10 @@ export interface MarketplaceOrderDetail {
     expectedDeliveryAt: string | null;
     deliveredAt: string | null;
     cancelledAt: string | null;
+    dispute: MarketplaceDisputeSummary | null;
+    canDispute: boolean;
+    disputeBlockedReason: string | null;
+    disputeWindowEndsAt: string | null;
     createdAt: string | null;
   }>;
   payments: Array<{

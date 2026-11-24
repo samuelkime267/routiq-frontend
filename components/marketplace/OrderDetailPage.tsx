@@ -11,13 +11,33 @@ import { Icon } from "@/components/icons";
 import Alert from "@/components/ui/Alert";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/ui/PageHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import { useMarketplaceAccount } from "@/hooks/useMarketplaceAccount";
 import { ApiError, customerOrderApi } from "@/lib/api";
 import { formatDate, formatNaira } from "@/lib/format";
 import { authLoginUrl } from "@/lib/urls";
-import type { MarketplaceOrderDetail } from "@/types/api";
+import type {
+  CustomerDisputeType,
+  MarketplaceOrderDetail,
+} from "@/types/api";
+
+const DISPUTE_TYPE_LABELS: Record<CustomerDisputeType, string> = {
+  non_delivery: "Order not delivered",
+  damaged_item: "Item damaged or faulty",
+  wrong_item: "Wrong item received",
+  refund: "Refund not received",
+  other: "Something else",
+};
+
+const DISPUTE_STATUS_LABELS: Record<string, string> = {
+  OPEN: "open",
+  UNDER_REVIEW: "under review",
+  AWAITING_INFORMATION: "awaiting information",
+  RESOLVED: "resolved",
+  CLOSED: "closed",
+};
 
 function paymentTone(status: string) {
   if (status === "successful" || status === "paid") return "Paid";
@@ -36,6 +56,19 @@ export default function OrderDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmedOrderIds, setConfirmedOrderIds] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [disputeTarget, setDisputeTarget] = useState<string | null>(null);
+  const [disputeType, setDisputeType] =
+    useState<CustomerDisputeType>("non_delivery");
+  const [disputeSubject, setDisputeSubject] = useState("");
+  const [disputeDescription, setDisputeDescription] = useState("");
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+  const [disputing, setDisputing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -164,6 +197,113 @@ export default function OrderDetailPage({
   const paidPayments = order.payments.filter(
     (payment) => payment.status === "successful",
   );
+  const anyRefunded = order.orders.some(
+    (subOrder) => subOrder.paymentStatus === "refunded",
+  );
+
+  const confirmReceipt = async (orderId: string) => {
+    setConfirmingId(orderId);
+    setNotice(null);
+
+    try {
+      const result = await customerOrderApi.confirmReceipt(orderId);
+      setConfirmedOrderIds((current) => [...current, orderId]);
+      setNotice(
+        result.released
+          ? "Thanks — receipt confirmed and the vendor has been paid."
+          : "Thanks — receipt confirmed.",
+      );
+      setVersion((current) => current + 1);
+    } catch (confirmError) {
+      setNotice(
+        confirmError instanceof ApiError
+          ? confirmError.message
+          : "We could not confirm this delivery. Please try again.",
+      );
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const cancelOrder = async () => {
+    if (!cancelTarget) return;
+
+    setCancelling(true);
+    setNotice(null);
+
+    try {
+      const result = await customerOrderApi.cancel(cancelTarget, {
+        reason: cancelReason.trim() || undefined,
+      });
+
+      setNotice(
+        result.refund?.state === "pending"
+          ? "Order cancelled. Your refund is being processed."
+          : result.refund
+            ? "Order cancelled and your payment was refunded."
+            : "Order cancelled.",
+      );
+      setCancelTarget(null);
+      setCancelReason("");
+      setVersion((current) => current + 1);
+    } catch (cancelError) {
+      setNotice(
+        cancelError instanceof ApiError
+          ? cancelError.message
+          : "We could not cancel this order. Please try again.",
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const openDispute = (orderId: string) => {
+    setDisputeTarget(orderId);
+    setDisputeType("non_delivery");
+    setDisputeSubject("");
+    setDisputeDescription("");
+    setDisputeError(null);
+  };
+
+  const submitDispute = async () => {
+    if (!disputeTarget) return;
+
+    setDisputeError(null);
+
+    if (disputeSubject.trim().length < 5) {
+      setDisputeError("Give the dispute a short title.");
+      return;
+    }
+
+    if (disputeDescription.trim().length < 10) {
+      setDisputeError("Describe what went wrong (at least 10 characters).");
+      return;
+    }
+
+    setDisputing(true);
+
+    try {
+      const result = await customerOrderApi.createDispute(disputeTarget, {
+        type: disputeType,
+        subject: disputeSubject.trim(),
+        description: disputeDescription.trim(),
+      });
+
+      setNotice(
+        `Dispute ${result.dispute.reference} submitted. The store's earnings stay on hold while Routiq reviews it.`,
+      );
+      setDisputeTarget(null);
+      setVersion((current) => current + 1);
+    } catch (disputeFailure) {
+      setDisputeError(
+        disputeFailure instanceof ApiError
+          ? disputeFailure.message
+          : "We could not submit this dispute. Please try again.",
+      );
+    } finally {
+      setDisputing(false);
+    }
+  };
 
   return (
     <MarketplaceContainer className="py-6 sm:py-8 lg:py-10">
@@ -197,6 +337,20 @@ export default function OrderDetailPage({
           </Button>
         }
       />
+
+      {notice ? (
+        <Alert tone="info" className="mt-5">
+          {notice}
+        </Alert>
+      ) : null}
+
+      {anyRefunded ? (
+        <Alert tone="info" title="Refund issued" className="mt-5">
+          The payment for the refunded store in this order has been returned to
+          you. Bank timelines vary, so allow a few business days for it to
+          appear.
+        </Alert>
+      ) : null}
 
       {pendingPayment ? (
         <Alert
@@ -306,6 +460,77 @@ export default function OrderDetailPage({
                   </p>
                 ) : null}
               </div>
+
+              {subOrder.status === "pending" ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 sm:px-5">
+                  <p className="text-[10.5px] text-muted">
+                    Waiting for the store to accept this order. You can cancel
+                    for a full refund until they do.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCancelTarget(subOrder._id);
+                      setCancelReason("");
+                    }}
+                  >
+                    Cancel order
+                  </Button>
+                </div>
+              ) : null}
+
+              {subOrder.status === "shipped" &&
+              !confirmedOrderIds.includes(subOrder._id) ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 sm:px-5">
+                  <p className="text-[10.5px] text-muted">
+                    Parcel arrived? Confirm receipt to release the vendor&apos;s
+                    payment.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => void confirmReceipt(subOrder._id)}
+                    loading={confirmingId === subOrder._id}
+                  >
+                    Confirm receipt
+                  </Button>
+                </div>
+              ) : null}
+
+              {subOrder.dispute &&
+              subOrder.dispute.status !== "RESOLVED" &&
+              subOrder.dispute.status !== "CLOSED" ? (
+                <div className="border-t border-line bg-accent/[0.06] px-4 py-3 sm:px-5">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                    <Icon name="shield" className="size-3.5 text-accent" />
+                    Dispute {subOrder.dispute.reference} is{" "}
+                    {DISPUTE_STATUS_LABELS[subOrder.dispute.status] ?? "open"}
+                  </p>
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-muted">
+                    {subOrder.dispute.subject}. The store&apos;s earnings stay on
+                    hold until Routiq resolves the case.
+                  </p>
+                </div>
+              ) : null}
+
+              {subOrder.canDispute ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 sm:px-5">
+                  <p className="text-[10.5px] leading-relaxed text-muted">
+                    Something wrong with this order? Raise a dispute
+                    {subOrder.disputeWindowEndsAt
+                      ? ` before ${formatDate(subOrder.disputeWindowEndsAt)}`
+                      : ""}
+                    .
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openDispute(subOrder._id)}
+                  >
+                    Raise a dispute
+                  </Button>
+                </div>
+              ) : null}
 
               {subOrder.timeline.length > 0 ? (
                 <div className="border-t border-line px-4 py-3 sm:px-5">
@@ -550,6 +775,133 @@ export default function OrderDetailPage({
           </div>
         </div>
       </div>
+
+      <Modal
+        open={Boolean(cancelTarget)}
+        onClose={() => setCancelTarget(null)}
+        title="Cancel this order?"
+        description="The store has not accepted the order yet. Cancelling now returns your payment in full."
+        dismissible={!cancelling}
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCancelTarget(null)}
+              disabled={cancelling}
+            >
+              Keep order
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => void cancelOrder()}
+              loading={cancelling}
+            >
+              Cancel order
+            </Button>
+          </div>
+        }
+      >
+        <label
+          htmlFor="customer-cancel-reason"
+          className="block text-[12px] font-semibold text-ink"
+        >
+          Reason
+          <span className="ml-1 font-normal text-muted">(optional)</span>
+        </label>
+        <textarea
+          id="customer-cancel-reason"
+          rows={3}
+          value={cancelReason}
+          onChange={(event) => setCancelReason(event.target.value)}
+          placeholder="Tell the store why you changed your mind"
+          className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+      </Modal>
+
+      <Modal
+        open={Boolean(disputeTarget)}
+        onClose={() => setDisputeTarget(null)}
+        title="Raise a dispute"
+        description="Tell us what went wrong. An open dispute freezes the store's earnings until Routiq resolves it, so keep the details accurate."
+        dismissible={!disputing}
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDisputeTarget(null)}
+              disabled={disputing}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => void submitDispute()} loading={disputing}>
+              Submit dispute
+            </Button>
+          </div>
+        }
+      >
+        {disputeError ? (
+          <Alert tone="error" className="mb-3">
+            {disputeError}
+          </Alert>
+        ) : null}
+
+        <label
+          htmlFor="customer-dispute-type"
+          className="block text-[12px] font-semibold text-ink"
+        >
+          What happened?
+        </label>
+        <select
+          id="customer-dispute-type"
+          value={disputeType}
+          onChange={(event) =>
+            setDisputeType(event.target.value as CustomerDisputeType)
+          }
+          className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        >
+          {(Object.keys(DISPUTE_TYPE_LABELS) as CustomerDisputeType[]).map(
+            (type) => (
+              <option key={type} value={type}>
+                {DISPUTE_TYPE_LABELS[type]}
+              </option>
+            ),
+          )}
+        </select>
+
+        <label
+          htmlFor="customer-dispute-subject"
+          className="mt-3 block text-[12px] font-semibold text-ink"
+        >
+          Title
+        </label>
+        <input
+          id="customer-dispute-subject"
+          value={disputeSubject}
+          onChange={(event) => setDisputeSubject(event.target.value)}
+          maxLength={160}
+          placeholder="For example: Parcel never arrived"
+          className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+
+        <label
+          htmlFor="customer-dispute-description"
+          className="mt-3 block text-[12px] font-semibold text-ink"
+        >
+          Details
+        </label>
+        <textarea
+          id="customer-dispute-description"
+          rows={4}
+          value={disputeDescription}
+          onChange={(event) => setDisputeDescription(event.target.value)}
+          maxLength={2000}
+          placeholder="Describe the problem, including dates and what the store told you."
+          className="mt-1 w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
+        />
+      </Modal>
     </MarketplaceContainer>
   );
 }

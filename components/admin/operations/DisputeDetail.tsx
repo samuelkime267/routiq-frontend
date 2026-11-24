@@ -204,8 +204,20 @@ export default function DisputeDetail({ disputeId }: { disputeId: string }) {
       ) : null}
 
       {status === "RESOLVED" && dispute.resolution ? (
-        <Alert tone="success" title="Resolution recorded">
+        <Alert
+          tone={dispute.outcomeError ? "error" : "success"}
+          title={
+            dispute.resolutionOutcome === "release"
+              ? "Resolved — vendor paid"
+              : dispute.resolutionOutcome === "refund"
+                ? "Resolved — customer refunded"
+                : "Resolution recorded"
+          }
+        >
           {dispute.resolution}
+          {dispute.outcomeError ? (
+            <span className="mt-1 block font-medium">{dispute.outcomeError}</span>
+          ) : null}
         </Alert>
       ) : null}
 
@@ -438,9 +450,23 @@ export default function DisputeDetail({ disputeId }: { disputeId: string }) {
           </SectionCard>
 
           <SectionCard title="Financial records">
-            <Alert tone="info" title="No money is moved here">
-              {financials.note}
-            </Alert>
+            {financials.outcomeError ? (
+              <Alert tone="error" title="Money outcome needs attention">
+                {financials.outcomeError}
+              </Alert>
+            ) : financials.outcome === "release" ? (
+              <Alert tone="success" title="Vendor paid">
+                Resolving this dispute released the escrow to the vendor.
+              </Alert>
+            ) : financials.outcome === "refund" ? (
+              <Alert tone="warning" title="Customer refunded">
+                Resolving this dispute issued a full refund to the customer.
+              </Alert>
+            ) : (
+              <Alert tone="info" title="No money has moved yet">
+                {financials.note}
+              </Alert>
+            )}
             <dl className="mt-3">
               <InfoRow
                 label="Order total"
@@ -451,8 +477,22 @@ export default function DisputeDetail({ disputeId }: { disputeId: string }) {
                 }
               />
               <InfoRow
-                label="Escrow modified"
+                label="Outcome"
+                value={
+                  financials.outcome === "release"
+                    ? "Released to vendor"
+                    : financials.outcome === "refund"
+                      ? "Refunded to customer"
+                      : "Pending resolution"
+                }
+              />
+              <InfoRow
+                label="Escrow released"
                 value={financials.escrowModified ? "Yes" : "No"}
+              />
+              <InfoRow
+                label="Refund issued"
+                value={financials.refundIssued ? "Yes" : "No"}
               />
             </dl>
           </SectionCard>
@@ -490,6 +530,8 @@ export default function DisputeDetail({ disputeId }: { disputeId: string }) {
       {modal === "resolve" ? (
         <ResolveModal
           disputeId={disputeId}
+          canRelease={permissions.includes("escrow.release")}
+          canRefund={permissions.includes("refunds.manage")}
           onClose={() => setModal(null)}
           onCompleted={reload}
         />
@@ -804,21 +846,51 @@ function StatusModal({
 
 function ResolveModal({
   disputeId,
+  canRelease,
+  canRefund,
   onClose,
   onCompleted,
 }: {
   disputeId: string;
+  canRelease: boolean;
+  canRefund: boolean;
   onClose: () => void;
   onCompleted: () => void;
 }) {
   const { toast } = useToast();
+  const [outcome, setOutcome] = useState<"release" | "refund" | null>(null);
   const [resolution, setResolution] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const options = [
+    {
+      value: "release" as const,
+      title: "Pay the vendor",
+      body: "Release the held escrow to the vendor's available balance.",
+      allowed: canRelease,
+    },
+    {
+      value: "refund" as const,
+      title: "Refund the customer",
+      body: "Refund the full order amount through Paystack.",
+      allowed: canRefund,
+    },
+  ];
+
   const submit = async () => {
     setError(null);
+
+    if (!outcome) {
+      setError("Choose where the money goes before resolving.");
+      return;
+    }
+
+    if (!options.find((option) => option.value === outcome)?.allowed) {
+      setError("You do not have permission for that money outcome.");
+      return;
+    }
 
     if (resolution.trim().length < 10) {
       setError("A resolution of at least 10 characters is required.");
@@ -829,15 +901,21 @@ function ResolveModal({
 
     try {
       await disputeAdminApi.resolve(disputeId, {
+        outcome,
         resolution: resolution.trim(),
         note: note.trim() || undefined,
       });
 
       toast({
         tone: "success",
-        title: "Dispute resolved",
+        title:
+          outcome === "release"
+            ? "Dispute resolved — vendor paid"
+            : "Dispute resolved — customer refunded",
         description:
-          "The resolution is recorded. No payment or escrow record was changed.",
+          outcome === "release"
+            ? "The escrow was released to the vendor."
+            : "A full refund was requested for the customer.",
       });
 
       onCompleted();
@@ -858,7 +936,7 @@ function ResolveModal({
       open
       onClose={onClose}
       title="Resolve dispute"
-      description="Resolving records the outcome only. Refunds and escrow releases stay separate, audited operations."
+      description="Resolving closes the case and moves money. Choose whether the vendor is paid or the customer is refunded."
       dismissible={!saving}
       footer={
         <>
@@ -873,6 +951,54 @@ function ResolveModal({
     >
       <div className="space-y-4">
         <div>
+          <p className="mb-2 text-[13px] font-semibold text-ink">
+            Money outcome
+          </p>
+          <div className="space-y-2">
+            {options.map((option) => {
+              const selected = outcome === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={!option.allowed || saving}
+                  onClick={() => setOutcome(option.value)}
+                  aria-pressed={selected}
+                  className={[
+                    "flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition",
+                    selected
+                      ? "border-pri bg-pri/[0.04]"
+                      : "border-line bg-white hover:border-pri/40",
+                    option.allowed ? "" : "cursor-not-allowed opacity-50",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                      selected
+                        ? "border-pri bg-pri text-white"
+                        : "border-line text-transparent",
+                    ].join(" ")}
+                  >
+                    <Icon name="check" className="size-3" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-semibold text-ink">
+                      {option.title}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">
+                      {option.allowed
+                        ? option.body
+                        : "You do not have the permission for this outcome."}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
           <label
             htmlFor="dispute-resolution"
             className="mb-1 block text-[13px] font-semibold text-ink"
@@ -881,7 +1007,7 @@ function ResolveModal({
           </label>
           <textarea
             id="dispute-resolution"
-            rows={5}
+            rows={4}
             value={resolution}
             onChange={(event) => setResolution(event.target.value)}
             placeholder="Summarise the agreed outcome"
@@ -902,12 +1028,17 @@ function ResolveModal({
           </label>
           <textarea
             id="dispute-resolution-note"
-            rows={3}
+            rows={2}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink transition focus:border-pri focus:ring-4 focus:ring-pri/10 focus:outline-none"
           />
         </div>
+
+        <Alert tone="warning" title="Money moves immediately">
+          A release pays the vendor from escrow. A refund sends the full order
+          amount back through Paystack. Neither can be undone here.
+        </Alert>
 
         {error ? (
           <p
