@@ -12,6 +12,7 @@ import Button from "@/components/ui/Button";
 import FileUpload from "@/components/ui/FileUpload";
 import { Field } from "@/components/ui/Form";
 import {
+  SelectField,
   TextareaField,
   TextField,
 } from "@/components/ui/FormField";
@@ -19,6 +20,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
 import { useVendorSession } from "@/components/vendor/portal/VendorSession";
+import { useCategoryOptions } from "@/hooks/useCategoryOptions";
 import { ApiError, vendorPortalApi } from "@/lib/api";
 import { applyApiFieldErrors } from "@/lib/form";
 import { formatNaira } from "@/lib/format";
@@ -44,6 +46,8 @@ export default function VendorProductForm({ product }: VendorProductFormProps) {
   const [images, setImages] = useState<string[]>(product?.images ?? []);
   const [imageUrl, setImageUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const { options: categoryOptions, loading: categoriesLoading } =
+    useCategoryOptions(product?.category);
 
   const readOnly =
     product?.status === "suspended" || product?.status === "archived";
@@ -278,13 +282,14 @@ export default function VendorProductForm({ product }: VendorProductFormProps) {
             disabled={readOnly}
           />
 
-          <TextField
+          <SelectField
             label="Category"
-            placeholder="e.g. Bags & accessories"
-            hint="Use the same category wording you used for similar products so shoppers can find them together."
+            placeholder={categoriesLoading ? "Loading categories…" : "Select a category"}
+            hint="Categories are managed by Routiq so shoppers can browse a consistent catalogue."
             register={register("category")}
+            options={categoryOptions}
             error={errors.category?.message}
-            disabled={readOnly}
+            disabled={readOnly || categoriesLoading}
           />
 
           <TextareaField

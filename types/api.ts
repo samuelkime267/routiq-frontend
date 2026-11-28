@@ -877,6 +877,20 @@ export interface ApiOrderItem {
   total: number;
 }
 
+/** Courier chosen by the customer at checkout, used to book fulfilment. */
+export interface ApiOrderDelivery {
+  provider: DeliveryProvider | null;
+  optionId: string | null;
+  courierId: string | null;
+  courierName: string | null;
+  serviceCode: string | null;
+  service: string | null;
+  fee: number;
+  estimatedDaysMin: number | null;
+  estimatedDaysMax: number | null;
+  estimatedDeliveryText: string | null;
+}
+
 export interface ApiOrder {
   _id: string;
   orderNumber: string;
@@ -1194,6 +1208,7 @@ export interface ApiAdminOrder {
   shippingCity?: string | null;
   shippingState?: string | null;
   shippingAddress?: ApiOrderAddress | null;
+  delivery?: ApiOrderDelivery | null;
   timeline?: ApiOrderEvent[];
   placedAt?: string | null;
   expectedDeliveryAt?: string | null;
@@ -1965,6 +1980,26 @@ export interface MarketplaceAddress {
 
 export interface MarketplaceAddressListResult {
   addresses: MarketplaceAddress[];
+}
+
+/** Durable cart for a signed-in customer; prices are always re-resolved. */
+export interface MarketplaceCartLine {
+  product: MarketplaceProduct;
+  quantity: number;
+}
+
+export interface MarketplaceCart {
+  items: MarketplaceCartLine[];
+  updatedAt: string | null;
+}
+
+export interface MarketplaceCategoryOption {
+  name: string;
+  key: string;
+}
+
+export interface MarketplaceCategoryOptionListResult {
+  categories: MarketplaceCategoryOption[];
 }
 
 export interface AddressPayload {

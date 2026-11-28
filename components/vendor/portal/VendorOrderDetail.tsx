@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -15,11 +15,10 @@ import Modal from "@/components/ui/Modal";
 import PageHeader from "@/components/ui/PageHeader";
 import Skeleton from "@/components/ui/Skeleton";
 import Timeline, { type TimelineItem } from "@/components/ui/Timeline";
-import { TextField, TextareaField } from "@/components/ui/FormField";
+import { TextareaField } from "@/components/ui/FormField";
 import { useToast } from "@/components/ui/Toast";
 import { useResource } from "@/hooks/useResource";
 import { ApiError, vendorPortalApi } from "@/lib/api";
-import { applyApiFieldErrors } from "@/lib/form";
 import { formatNaira } from "@/lib/format";
 import {
   fulfillmentLabel,
@@ -35,9 +34,7 @@ import {
 } from "@/lib/orders";
 import {
   vendorCancelOrderSchema,
-  vendorShipmentSchema,
   type VendorCancelOrderValues,
-  type VendorShipmentValues,
 } from "@/lib/schemas/vendorOrder";
 import { shipmentStatusLabel, shipmentStatusTone } from "@/lib/shipments";
 import { vendorBreadcrumbs } from "@/lib/vendorNavigation";
@@ -251,7 +248,7 @@ export default function VendorOrderDetail({
             ) : null}
             {canShip ? (
               <Button size="sm" onClick={() => setShipOpen(true)}>
-                Record shipment
+                Book shipment
               </Button>
             ) : null}
             {canDeliver ? (
@@ -295,9 +292,9 @@ export default function VendorOrderDetail({
       ) : null}
 
       {order.status === "processing" ? (
-        <Alert tone="info" title="Record shipment when it leaves your store">
-          Add the courier and tracking details so the customer and Routiq can
-          follow the delivery.
+        <Alert tone="info" title="Book the courier when the order is ready">
+          Routiq books the courier the customer chose at checkout and adds the
+          tracking number automatically. No manual courier entry is needed.
         </Alert>
       ) : null}
 
@@ -342,7 +339,7 @@ export default function VendorOrderDetail({
                       {item.name}
                     </p>
                     <p className="text-[11px] text-muted">
-                      {item.quantity} × {formatNaira(item.unitPrice)}
+                      {item.quantity} Ã— {formatNaira(item.unitPrice)}
                     </p>
                   </div>
                   <p className="text-[12px] font-semibold text-ink">
@@ -364,7 +361,7 @@ export default function VendorOrderDetail({
               {order.discount > 0 ? (
                 <div className="flex justify-between gap-4 text-muted">
                   <dt>Discount</dt>
-                  <dd>−{formatNaira(order.discount)}</dd>
+                  <dd>âˆ’{formatNaira(order.discount)}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between gap-4 border-t border-line pt-2 text-ink">
@@ -450,7 +447,7 @@ export default function VendorOrderDetail({
                     Escrow
                   </p>
                   <p className="mt-1 text-[12px] text-ink">
-                    {formatNaira(escrow.amountHeld)} held ·{" "}
+                    {formatNaira(escrow.amountHeld)} held Â·{" "}
                     {formatNaira(escrow.amountReleased)} released
                   </p>
                   {escrow.releaseDueAt ? (
@@ -491,7 +488,7 @@ export default function VendorOrderDetail({
                       Courier
                     </p>
                     <p className="mt-1 text-[12px] font-medium text-ink">
-                      {shipment.courier?.name ?? "—"}
+                      {shipment.courier?.name ?? "â€”"}
                     </p>
                   </div>
                 </div>
@@ -545,11 +542,11 @@ export default function VendorOrderDetail({
             ) : (
               <div className="mt-3 rounded-xl border border-dashed border-line bg-soft/40 px-4 py-5 text-center">
                 <p className="text-[12px] font-semibold text-ink">
-                  No shipment recorded
+                  No shipment booked
                 </p>
                 <p className="mt-1 text-[11px] text-muted">
                   {canShip
-                    ? "Add the courier and tracking details once the order leaves your store."
+                    ? "Book the courier once the order is ready; tracking is added automatically."
                     : "Shipment details appear here after the order is ready."}
                 </p>
                 {canShip ? (
@@ -558,7 +555,7 @@ export default function VendorOrderDetail({
                     className="mt-3"
                     onClick={() => setShipOpen(true)}
                   >
-                    Record shipment
+                    Book shipment
                   </Button>
                 ) : null}
               </div>
@@ -610,7 +607,7 @@ export default function VendorOrderDetail({
               ) : null}
               {canShip ? (
                 <Button fullWidth size="sm" onClick={() => setShipOpen(true)}>
-                  Record shipment
+                  Book shipment
                 </Button>
               ) : null}
               {canDeliver ? (
@@ -753,14 +750,31 @@ export default function VendorOrderDetail({
       </div>
 
       {shipDialogOpen ? (
-        <ShipmentDialog
-          order={order}
+        <ConfirmDialog
+          open
           onClose={closeShipment}
-          onSaved={() => {
+          title="Book this shipment?"
+          description={`Routiq will book ${
+            order.delivery?.courierName ?? "the courier chosen at checkout"
+          } and add tracking automatically.`}
+          confirmLabel="Book shipment"
+          tone="primary"
+          onConfirm={async () => {
+            await vendorPortalApi.shipOrder(order._id, {});
+            toast({
+              title: "Shipment booked",
+              description:
+                "The courier has been booked and tracking is now visible to the customer.",
+              tone: "success",
+            });
             closeShipment();
             reload();
           }}
-        />
+        >
+          <p className="rounded-xl border border-line bg-soft/60 px-3.5 py-2.5 text-[12px] text-muted">
+            {orderReference(order)} Â· {formatNaira(order.total)}
+          </p>
+        </ConfirmDialog>
       ) : null}
 
       {cancelOpen ? (
@@ -803,7 +817,7 @@ export default function VendorOrderDetail({
         }}
       >
         <p className="rounded-xl border border-line bg-soft/60 px-3.5 py-2.5 text-[12px] text-muted">
-          {orderReference(order)} · {formatNaira(order.total)}
+          {orderReference(order)} Â· {formatNaira(order.total)}
         </p>
       </ConfirmDialog>
     </div>
@@ -816,150 +830,6 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-muted">{label}</dt>
       <dd className="break-all text-right text-ink">{value}</dd>
     </div>
-  );
-}
-
-function ShipmentDialog({
-  order,
-  onClose,
-  onSaved,
-}: {
-  order: ApiAdminOrder;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { toast } = useToast();
-  const [formError, setFormError] = useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<VendorShipmentValues>({
-    resolver: zodResolver(vendorShipmentSchema),
-    defaultValues: {
-      courierName: "",
-      trackingNumber: "",
-      trackingUrl: "",
-      estimatedDeliveryAt: "",
-      note: "",
-    },
-  });
-
-  const onSubmit = handleSubmit(async (values) => {
-    setFormError(null);
-
-    try {
-      await vendorPortalApi.shipOrder(order._id, {
-        courierName: values.courierName.trim(),
-        trackingNumber: values.trackingNumber.trim(),
-        trackingUrl: values.trackingUrl.trim() || undefined,
-        estimatedDeliveryAt: values.estimatedDeliveryAt || undefined,
-        note: values.note.trim() || undefined,
-      });
-      toast({
-        title: "Shipment recorded",
-        description: "The order is now marked as shipped.",
-        tone: "success",
-      });
-      onSaved();
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setFormError(error.message);
-        applyApiFieldErrors(setError, error.fieldErrors, [
-          "courierName",
-          "trackingNumber",
-          "trackingUrl",
-          "estimatedDeliveryAt",
-          "note",
-        ]);
-      } else {
-        setFormError(
-          error instanceof Error
-            ? error.message
-            : "The shipment could not be recorded.",
-        );
-      }
-    }
-  });
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Record shipment"
-      description="Adding shipment details moves this order to shipped and tells the customer it is on the way."
-      size="md"
-      dismissible={!isSubmitting}
-      footer={
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form="vendor-shipment-form"
-            size="sm"
-            loading={isSubmitting}
-          >
-            Save shipment
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="vendor-shipment-form"
-        onSubmit={onSubmit}
-        className="space-y-3"
-      >
-        <TextField
-          label="Courier"
-          placeholder="e.g. GIG Logistics"
-          register={register("courierName")}
-          error={errors.courierName?.message}
-        />
-        <TextField
-          label="Tracking number"
-          placeholder="Courier tracking reference"
-          register={register("trackingNumber")}
-          error={errors.trackingNumber?.message}
-        />
-        <TextField
-          label="Tracking URL"
-          optional
-          type="url"
-          placeholder="https://…"
-          register={register("trackingUrl")}
-          error={errors.trackingUrl?.message}
-        />
-        <TextField
-          label="Estimated delivery"
-          optional
-          type="date"
-          register={register("estimatedDeliveryAt")}
-          error={errors.estimatedDeliveryAt?.message}
-        />
-        <TextareaField
-          label="Note for the customer"
-          optional
-          rows={3}
-          placeholder="Anything the customer should know about this delivery."
-          register={register("note")}
-          error={errors.note?.message}
-        />
-
-        {formError ? (
-          <p role="alert" className="text-[12px] text-danger">
-            {formError}
-          </p>
-        ) : null}
-      </form>
-    </Modal>
   );
 }
 

@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon, Logo } from "@/components/icons";
-import { ApiError, authApi, userApi } from "@/lib/api";
+import { authApi } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { clearAuth, getStoredUser, saveUser } from "@/lib/session";
+import { clearAuth } from "@/lib/session";
 import { useHydrated } from "@/lib/useHydrated";
 import { APP_URLS, authLoginUrl } from "@/lib/urls";
-import type { ApiUser } from "@/types/api";
+import { useAppSelector } from "@/store/hooks";
 
 const links = [
   { href: "/", label: "Dashboard", icon: "store" as const },
@@ -19,41 +19,21 @@ const links = [
 export default function VendorHeader() {
   const pathname = usePathname();
   const hydrated = useHydrated();
-  const [user, setUser] = useState<ApiUser | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const displayUser = user ?? (hydrated ? getStoredUser() : null);
-  // Auth pages are reachable without a session; probing `/user/me` there would
-  // bounce a 401 straight back to the sign-in screen in a reload loop.
+  const status = useAppSelector((state) => state.auth.status);
+  const sessionUser = useAppSelector((state) => state.auth.user);
+  const displayUser =
+    hydrated && sessionUser && "name" in sessionUser ? sessionUser : null;
+  // Auth pages are reachable without a session; bouncing them to sign-in would
+  // make the form unreachable.
   const onAuthRoute = pathname.startsWith("/auth");
 
   useEffect(() => {
-    if (onAuthRoute) return;
+    if (onAuthRoute || status !== "anonymous") return;
 
-    let cancelled = false;
-
-    userApi
-      .me()
-      .then((currentUser) => {
-        if (cancelled) return;
-        setUser(currentUser);
-        saveUser(currentUser);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-
-        // apiFetch already tried the httpOnly refresh cookie, so a 401 here
-        // means the session is genuinely gone. Network/server errors should
-        // not sign the user out.
-        if (error instanceof ApiError && error.status === 401) {
-          clearAuth();
-          window.location.href = authLoginUrl();
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [onAuthRoute]);
+    clearAuth();
+    window.location.href = authLoginUrl();
+  }, [onAuthRoute, status]);
 
   async function handleLogout() {
     setLoggingOut(true);

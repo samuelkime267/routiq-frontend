@@ -98,7 +98,7 @@ function CheckoutSection({
 export default function CheckoutPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { hydrated, user } = useMarketplaceAccount();
+  const { hydrated, user, status: authStatus } = useMarketplaceAccount();
   const { hydrated: cartHydrated, cart, cartCount, clearCart } =
     useMarketplace();
 
@@ -130,7 +130,12 @@ export default function CheckoutPage() {
   const [placeError, setPlaceError] = useState<string | null>(null);
   const keyRef = useRef<{ signature: string; key: string } | null>(null);
 
-  const signedOut = hydrated && cartHydrated && !user && cart.length > 0;
+  const signedOut =
+    hydrated &&
+    cartHydrated &&
+    authStatus === "anonymous" &&
+    !user &&
+    cart.length > 0;
 
   useEffect(() => {
     if (!signedOut) return;
@@ -276,11 +281,22 @@ export default function CheckoutPage() {
     [quote],
   );
 
+  const allCouriersSelected = useMemo(() => {
+    if (!quote) return false;
+
+    return quote.groups.every(
+      (group) =>
+        !group.delivery.available ||
+        Boolean(deliverySelections[group.store._id]),
+    );
+  }, [quote, deliverySelections]);
+
   const canPay =
     Boolean(quote) &&
     !quote?.blocking &&
     Boolean(selectedAddressId) &&
     Boolean(methods?.configured) &&
+    allCouriersSelected &&
     !quoteLoading &&
     !placing;
 
@@ -664,9 +680,7 @@ export default function CheckoutPage() {
                     key={group.store._id}
                     group={group}
                     selectedOptionId={
-                      deliverySelections[group.store._id] ??
-                      group.selectedDelivery?.id ??
-                      group.delivery.selectedOptionId
+                      deliverySelections[group.store._id] ?? null
                     }
                     onSelectOption={(optionId) =>
                       setDeliverySelections((current) => ({
@@ -795,6 +809,12 @@ export default function CheckoutPage() {
                     ? `Pay ${formatNaira(quote.summary.total)}`
                     : "Review total"}
                 </Button>
+
+                {quote && !allCouriersSelected ? (
+                  <p className="mt-2 text-center text-[11px] font-medium text-pri">
+                    Select a courier for every store before paying.
+                  </p>
+                ) : null}
 
                 <p className="mt-3 text-center text-[10px] leading-relaxed text-muted">
                   By paying you agree to Routiq&apos;s{" "}
@@ -946,8 +966,7 @@ function StoreFulfilment({
               "Delivery is not available for this store at your address."}
           </Alert>
         ) : (
-          <div className="mt-2 space-y-2" role="radiogroup" aria-label={`Delivery for ${group.store.name}`}>
-            {group.delivery.options.map((option) => {
+          <div className="mt-2 space-y-2" role="radiogroup" aria-label={`Delivery for ${group.store.name}`}>            {group.delivery.options.map((option) => {
               const selected = option.id === selectedOptionId;
 
               return (
@@ -993,6 +1012,12 @@ function StoreFulfilment({
             })}
           </div>
         )}
+
+        {group.delivery.available && !selectedOptionId ? (
+          <p className="mt-2 text-[11px] font-medium text-pri">
+            Choose a courier to continue.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-between border-t border-line bg-soft/30 px-4 py-2.5 text-[11px]">

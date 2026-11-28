@@ -6,12 +6,17 @@ import {
   useContext,
   useEffect,
   useRef,
-  useState,
   type ReactNode,
 } from "react";
 import { Logo } from "@/components/icons";
-import { ApiError, SESSION_EXPIRED_EVENT, adminAuthApi } from "@/lib/api";
-import { clearAuth, saveUser } from "@/lib/session";
+import {
+  ApiError,
+  SESSION_EXPIRED_EVENT,
+  adminAuthApi,
+} from "@/lib/api";
+import { clearAuth } from "@/lib/session";
+import { sessionResolved } from "@/store/authSlice";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import type { AdminPermission, ApiAdminUser } from "@/types/api";
 
 interface AdminSessionValue {
@@ -35,68 +40,82 @@ export function useAdminSession() {
 /**
  * Protects every admin console route. Frontend hiding is only a convenience:
  * the API independently verifies the session, admin status and permissions on
- * every request.
+ * every request. The session itself is resolved by `ReduxProvider`.
  */
 export default function AdminSessionProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [session, setSession] = useState<Omit<
-    AdminSessionValue,
-    "logout"
-  > | null>(null);
+  const dispatch = useAppDispatch();
+  const status = useAppSelector((state) => state.auth.status);
+  const sessionUser = useAppSelector((state) => state.auth.user);
+  const permissions = useAppSelector((state) => state.auth.permissions);
+  const reason = useAppSelector((state) => state.auth.reason);
   const redirecting = useRef(false);
 
   const redirectToLogin = useCallback(
-    (reason: "expired" | "denied") => {
+    (nextReason: "expired" | "denied") => {
       if (redirecting.current) return;
       redirecting.current = true;
       clearAuth();
       // A hard navigation keeps the public, host-relative path and its query
       // string intact through the host rewrite in `proxy.ts`.
-      window.location.replace(`/login?reason=${reason}`);
+      window.location.replace(`/login?reason=${nextReason}`);
     },
     [],
   );
 
+  const user =
+    sessionUser && sessionUser.role === "admin"
+      ? (sessionUser as ApiAdminUser)
+      : null;
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadSession() {
-      try {
-        const profile = await adminAuthApi.me();
-        if (cancelled) return;
-
-        saveUser(profile.user);
-        setSession({ user: profile.user, permissions: profile.permissions });
-      } catch (error) {
-        if (cancelled) return;
-
-        const reason =
-          error instanceof ApiError && error.status === 403
-            ? "denied"
-            : "expired";
-        redirectToLogin(reason);
-      }
+    if (status === "anonymous") {
+      redirectToLogin(reason ?? "expired");
+      return;
     }
 
-    void loadSession();
+    if (status === "authenticated" && !user) {
+      redirectToLogin("denied");
+    }
+  }, [status, user, reason, redirectToLogin]);
 
+  useEffect(() => {
     const handleExpired = () => redirectToLogin("expired");
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") void loadSession();
+      if (document.visibilityState !== "visible") return;
+
+      void adminAuthApi
+        .me()
+        .then((profile) => {
+          dispatch(
+            sessionResolved({
+              scope: "admin",
+              user: profile.user,
+              permissions: profile.permissions,
+            }),
+          );
+        })
+        .catch((error: unknown) => {
+          if (error instanceof ApiError && error.status === 403) {
+            redirectToLogin("denied");
+            return;
+          }
+
+          redirectToLogin("expired");
+        });
     };
 
     window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      cancelled = true;
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [redirectToLogin]);
+  }, [dispatch, redirectToLogin]);
 
   const logout = useCallback(async () => {
     try {
@@ -110,7 +129,7 @@ export default function AdminSessionProvider({
     }
   }, []);
 
-  if (!session) {
+  if (!user || status !== "authenticated") {
     return (
       <div className="grid min-h-dvh place-items-center bg-soft/60 px-6">
         <div className="flex flex-col items-center gap-4 rounded-[24px] border border-line bg-white px-10 py-9 text-center">
@@ -132,7 +151,7 @@ export default function AdminSessionProvider({
   }
 
   return (
-    <AdminSessionContext.Provider value={{ ...session, logout }}>
+    <AdminSessionContext.Provider value={{ user, permissions, logout }}>
       {children}
     </AdminSessionContext.Provider>
   );

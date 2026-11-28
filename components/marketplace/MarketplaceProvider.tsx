@@ -6,14 +6,23 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import type { MarketplaceProduct } from "@/types/api";
+import { cartApi } from "@/lib/api";
+import { useAppSelector } from "@/store/hooks";
+import type { MarketplaceCart, MarketplaceProduct } from "@/types/api";
 
 const CART_KEY = "routiq.marketplace.cart.v1";
 const WISHLIST_KEY = "routiq.marketplace.wishlist.v1";
 const LOCATION_KEY = "routiq.marketplace.location.v1";
+
+/**
+ * One in-flight sync per account. React's development double-effects must not
+ * merge the guest cart twice, so the promise is shared by account id.
+ */
+const cartSyncs = new Map<string, Promise<MarketplaceCart>>();
 
 export interface CartLine {
   product: MarketplaceProduct;
@@ -103,6 +112,11 @@ export default function MarketplaceProvider({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [wishlist, setWishlist] = useState<MarketplaceProduct[]>([]);
   const [location, setLocationState] = useState("Nigeria");
+  const [syncedUser, setSyncedUser] = useState<string | null>(null);
+  const authUser = useAppSelector((state) => state.auth.user);
+  const signedInId =
+    authUser && authUser.role === "user" ? authUser._id : null;
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Hydration must start from the server snapshot, then adopt browser-only
@@ -115,10 +129,12 @@ export default function MarketplaceProvider({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
+  // Guest cart lives in local storage. Signed-in carts live in the API so they
+  // follow the customer between devices and browser sessions.
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || signedInId) return;
     writeStored(CART_KEY, cart);
-  }, [cart, hydrated]);
+  }, [cart, hydrated, signedInId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -129,6 +145,94 @@ export default function MarketplaceProvider({
     if (!hydrated) return;
     writeStored(LOCATION_KEY, location);
   }, [location, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    if (!signedInId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const guestLines = normaliseCart(readStored<unknown>(CART_KEY, [])).map(
+      (line) => ({
+        productId: line.product._id,
+        quantity: line.quantity,
+      }),
+    );
+
+    let sync = cartSyncs.get(signedInId);
+
+    if (!sync) {
+      sync =
+        guestLines.length > 0
+          ? cartApi.merge({ items: guestLines })
+          : cartApi.get();
+
+      cartSyncs.set(signedInId, sync);
+
+      // The database is now the source of truth; drop the guest copy so a
+      // later sign-out does not resurrect a stale cart.
+      sync
+        .then(() => {
+          try {
+            window.localStorage.removeItem(CART_KEY);
+          } catch {
+            // Storage may be unavailable; the server copy still wins.
+          }
+        })
+        .catch(() => {
+          cartSyncs.delete(signedInId);
+        });
+    }
+
+    void sync
+      .then((view) => {
+        if (cancelled) return;
+
+        setCart(
+          view.items.map((line) => ({
+            product: line.product,
+            quantity: line.quantity,
+          })),
+        );
+        setSyncedUser(signedInId);
+      })
+      .catch(() => {
+        // A failed sync keeps the local cart usable; checkout still quotes
+        // against the API.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, signedInId]);
+
+  // Persist edits made while signed in. Debounced so rapid quantity taps do
+  // not produce a request per click.
+  useEffect(() => {
+    if (!hydrated || !signedInId || syncedUser !== signedInId) return;
+
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+
+    pushTimer.current = setTimeout(() => {
+      void cartApi
+        .replace({
+          items: cart.map((line) => ({
+            productId: line.product._id,
+            quantity: line.quantity,
+          })),
+        })
+        .catch(() => {
+          /* The next edit retries; the UI keeps the optimistic cart. */
+        });
+    }, 450);
+
+    return () => {
+      if (pushTimer.current) clearTimeout(pushTimer.current);
+    };
+  }, [cart, hydrated, signedInId, syncedUser]);
 
   const addToCart = useCallback(
     (product: MarketplaceProduct, quantity = 1) => {

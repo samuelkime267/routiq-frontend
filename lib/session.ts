@@ -1,115 +1,60 @@
 "use client";
 
-import type { ApiUser } from "@/types/api";
+import type { AdminPermission, ApiUser } from "@/types/api";
+import { store } from "@/store";
+import {
+  sessionResolved,
+  sessionSignedOut,
+  tokenUpdated,
+  userUpdated,
+} from "@/store/authSlice";
 
-const TOKEN_KEY = "routiq.accessToken";
-const USER_KEY = "routiq.user";
-const TOKEN_COOKIE = "routiq_token";
-const USER_COOKIE = "routiq_user";
-const COOKIE_DAYS = 30;
+/**
+ * Session facade.
+ *
+ * The access token and user live in the Redux store (memory only). The durable
+ * part of the session is the httpOnly refresh cookie, which the browser sends
+ * to the API but JavaScript cannot read. Nothing is written to localStorage or
+ * a readable cookie, so an XSS cannot lift a long-lived credential.
+ *
+ * This module keeps the small function surface the rest of the app already
+ * imports, while the Redux store remains the single source of truth.
+ */
 
-function writeCookie(name: string, value: string, maxAgeDays = COOKIE_DAYS) {
-  if (typeof document === "undefined") return;
-
-  const maxAge = maxAgeDays * 24 * 60 * 60;
-
-  // Host-only cookie: each subdomain keeps its own session, which keeps the
-  // per-host auth model honest instead of leaking a token across apps.
-  document.cookie = [
-    `${name}=${encodeURIComponent(value)}`,
-    "Path=/",
-    `Max-Age=${maxAge}`,
-    "SameSite=Lax",
-  ]
-    .filter(Boolean)
-    .join("; ");
+export function getAccessToken(): string | null {
+  return store.getState().auth.accessToken;
 }
 
-function removeCookie(name: string) {
-  if (typeof document === "undefined") return;
-
-  document.cookie = [
-    `${name}=`,
-    "Path=/",
-    "Max-Age=0",
-    "SameSite=Lax",
-  ]
-    .filter(Boolean)
-    .join("; ");
+export function setAccessToken(token: string | null) {
+  store.dispatch(tokenUpdated(token));
 }
 
-function readCookie(name: string) {
-  if (typeof document === "undefined") return null;
-
-  const prefix = `${name}=`;
-  const match = document.cookie
-    .split(";")
-    .map((entry) => entry.trim())
-    .find((entry) => entry.startsWith(prefix));
-
-  return match ? decodeURIComponent(match.slice(prefix.length)) : null;
-}
-
-function readLocal(key: string) {
-  if (typeof window === "undefined") return null;
-
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeLocal(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Storage can be unavailable in private or restricted contexts.
-  }
-}
-
-function removeLocal(key: string) {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // Ignore storage errors.
-  }
-}
-
-export function setAccessToken(token: string) {
-  writeLocal(TOKEN_KEY, token);
-  writeCookie(TOKEN_COOKIE, token);
-}
-
-export function getAccessToken() {
-  return readLocal(TOKEN_KEY) || readCookie(TOKEN_COOKIE);
+export function saveAuth(
+  accessToken: string,
+  user: ApiUser,
+  permissions: AdminPermission[] = [],
+) {
+  store.dispatch(tokenUpdated(accessToken));
+  store.dispatch(
+    sessionResolved({
+      scope: user.role === "admin" ? "admin" : "app",
+      user,
+      permissions,
+    }),
+  );
 }
 
 export function saveUser(user: ApiUser) {
-  const value = JSON.stringify(user);
-  writeLocal(USER_KEY, value);
-  writeCookie(USER_COOKIE, value);
+  store.dispatch(userUpdated(user));
 }
 
 export function getStoredUser(): ApiUser | null {
-  const raw = readLocal(USER_KEY) || readCookie(USER_COOKIE);
-  if (!raw) return null;
+  const user = store.getState().auth.user;
 
-  try {
-    return JSON.parse(raw) as ApiUser;
-  } catch {
-    return null;
-  }
-}
-
-export function saveAuth(accessToken: string, user: ApiUser) {
-  setAccessToken(accessToken);
-  saveUser(user);
+  return user && "role" in user ? (user as ApiUser) : null;
 }
 
 export function clearAuth() {
-  removeLocal(TOKEN_KEY);
-  removeLocal(USER_KEY);
-  removeCookie(TOKEN_COOKIE);
-  removeCookie(USER_COOKIE);
+  store.dispatch(tokenUpdated(null));
+  store.dispatch(sessionSignedOut({ reason: null }));
 }

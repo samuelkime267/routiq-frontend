@@ -1,6 +1,7 @@
 ﻿import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { fonts } from "@/config/fonts";
+import ReduxProvider from "@/store/ReduxProvider";
 
 export const metadata: Metadata = {
   title: {
@@ -14,7 +15,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/vendor">) {
   return (
     <html lang="en" className={`${fonts} h-full antialiased`}>
-      <body className="min-h-full bg-soft/60">{children}</body>
+      <body className="min-h-full bg-soft/60">
+        <ReduxProvider scope="app">{children}</ReduxProvider>
+      </body>
     </html>
   );
 }

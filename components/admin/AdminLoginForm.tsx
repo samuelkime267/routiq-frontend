@@ -45,7 +45,7 @@ export default function AdminLoginForm() {
         return;
       }
 
-      saveAuth(result.token.accessToken, result.user);
+      saveAuth(result.token.accessToken, result.user, result.permissions);
       window.location.replace("/");
     } catch (loginError) {
       if (loginError instanceof ApiError) {

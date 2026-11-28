@@ -68,7 +68,7 @@ export default function AdminAcceptInvitationForm({
         return;
       }
 
-      saveAuth(result.token.accessToken, result.user);
+      saveAuth(result.token.accessToken, result.user, result.permissions);
       window.location.replace("/");
     } catch (submitError) {
       if (submitError instanceof ApiError) {

@@ -276,6 +276,13 @@ export default function MarketplaceHeader() {
         <div className="hidden border-t border-line/80 lg:block">
           <MarketplaceContainer className="flex h-11 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Link
+              href="/products"
+              className="mr-1 inline-flex shrink-0 items-center gap-1.5 rounded-full bg-lime px-3 py-1.5 text-[11px] font-bold text-pri-deep transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-pri/30 focus-visible:outline-none"
+            >
+              <Icon name="shopping-bag" className="size-3.5" />
+              All products
+            </Link>
+            <Link
               href="/categories"
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] font-semibold text-pri transition hover:bg-well focus-visible:ring-2 focus-visible:ring-pri/30 focus-visible:outline-none"
             >

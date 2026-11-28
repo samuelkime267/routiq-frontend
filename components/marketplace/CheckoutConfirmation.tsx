@@ -50,7 +50,7 @@ export default function CheckoutConfirmation({
   masterOrderNumber,
   providerReference,
 }: CheckoutConfirmationProps) {
-  const { hydrated, user } = useMarketplaceAccount();
+  const { hydrated, user, status: authStatus } = useMarketplaceAccount();
   const { clearCart } = useMarketplace();
 
   const [state, setState] = useState<CheckoutState | null>(null);
@@ -61,7 +61,7 @@ export default function CheckoutConfirmation({
   const [retryError, setRetryError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
 
-  const signedOut = hydrated && !user;
+  const signedOut = hydrated && authStatus === "anonymous" && !user;
 
   // On return from the provider the URL carries a reference. Confirmation is
   // still server-to-server: this only tells Routiq to ask the provider.

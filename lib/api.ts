@@ -72,8 +72,10 @@ import type {
   FinancialRevenueResult,
   MarketplaceCategoryDetailResult,
   MarketplaceCategoryListResult,
+  MarketplaceCategoryOptionListResult,
   MarketplaceCategoryProductsResult,
   MarketplaceCategoryQuery,
+  MarketplaceCart,
   MarketplaceFeaturedStoreListResult,
   MarketplaceAddress,
   MarketplaceAddressListResult,
@@ -1328,12 +1330,8 @@ export const vendorPortalApi = {
   shipOrder: (
     orderId: string,
     payload: {
-      courierName: string;
-      trackingNumber: string;
-      trackingUrl?: string;
-      estimatedDeliveryAt?: string;
       note?: string;
-    },
+    } = {},
   ) =>
     apiFetch<{ order: unknown; shipment: unknown }>(
       `/orders/vendor/${encodeURIComponent(orderId)}/shipment`,
@@ -1559,6 +1557,14 @@ export const marketplaceApi = {
       { auth: false },
     ),
 
+  /** Fixed list vendors choose from when listing a product. */
+  categoryOptions: () =>
+    apiFetch<MarketplaceCategoryOptionListResult>(
+      "/categories/options",
+      {},
+      { auth: false },
+    ),
+
   category: (categoryId: string) =>
     apiFetch<MarketplaceCategoryDetailResult>(
       `/categories/${encodeURIComponent(categoryId)}`,
@@ -1617,6 +1623,26 @@ export const marketplaceApi = {
       {},
       { auth: false },
     ),
+};
+
+export const cartApi = {
+  get: () => apiFetch<MarketplaceCart>("/cart"),
+
+  replace: (payload: {
+    items: { productId: string; quantity: number }[];
+  }) =>
+    apiFetch<MarketplaceCart>("/cart", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  merge: (payload: {
+    items: { productId: string; quantity: number }[];
+  }) =>
+    apiFetch<MarketplaceCart>("/cart/merge", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const addressApi = {
